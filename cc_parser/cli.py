@@ -21,7 +21,7 @@ import typer
 
 from cc_parser.extractor import extract_raw_pdf, is_pdf_encrypted
 from cc_parser.parsers.factory import detect_bank, get_parser
-from cc_parser.parsers.generic import parse_amount
+from cc_parser.parsers.tokens import parse_amount
 
 
 class BankOption(str, Enum):

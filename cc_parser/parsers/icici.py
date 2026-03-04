@@ -4,16 +4,14 @@ Builds on generic parsing and applies ICICI-specific normalization,
 especially for add-on card grouping and person labeling.
 """
 
-from decimal import Decimal
 import re
 from typing import Any
 
-from cc_parser.parsers.generic import (
-    GenericParser,
+from cc_parser.parsers.generic import GenericParser
+from cc_parser.parsers.tokens import format_amount, sum_amounts
+from cc_parser.parsers.reconciliation import (
     build_card_summaries,
-    format_amount,
     group_transactions_by_person,
-    parse_amount,
 )
 
 
@@ -114,9 +112,7 @@ class IciciParser(GenericParser):
         )
         person_groups = group_transactions_by_person(debit_transactions, primary_name)
 
-        credit_total = Decimal("0")
-        for txn in credit_transactions:
-            credit_total += parse_amount(str(txn.get("amount") or "0"))
+        credit_total = sum_amounts(credit_transactions)
 
         parsed["card_summaries"] = card_summaries
         parsed["overall_total"] = overall_total

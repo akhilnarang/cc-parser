@@ -2,7 +2,7 @@
 
 PDF statement extractor for credit card statements (HDFC, ICICI, and similar).
 
-This code has entirely been written by `gpt-5.3-codex`.
+This code has entirely been written by `gpt-5.3-codex` and improved by Claude Opus 4.6.
 
 Requires Python 3.14.
 

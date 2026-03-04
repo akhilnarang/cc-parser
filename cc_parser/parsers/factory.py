@@ -4,7 +4,7 @@
 `get_parser` returns the parser implementation for the selected bank.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.generic import GenericParser
@@ -14,7 +14,7 @@ from cc_parser.parsers.icici import IciciParser
 BankChoice = Literal["auto", "icici", "hdfc", "generic"]
 
 
-def detect_bank(raw_data: dict[str, object]) -> str:
+def detect_bank(raw_data: dict[str, Any]) -> str:
     """Infer bank profile from first pages and input file name.
 
     Args:
@@ -39,7 +39,7 @@ def detect_bank(raw_data: dict[str, object]) -> str:
     return "generic"
 
 
-def get_parser(choice: BankChoice, raw_data: dict[str, object]) -> StatementParser:
+def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
     """Return parser instance for explicit or auto-detected bank choice.
 
     Args:
