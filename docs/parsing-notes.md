@@ -5,7 +5,7 @@ This document explains the statement structures the parser handles and the norma
 ## Scope
 
 - Input: password-protected or plain PDF credit card statements.
-- Supported parsing profiles: `hdfc`, `icici`, `generic`.
+- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `generic`.
 - Output: normalized JSON for transactions, totals, and reconciliation.
 
 ## Common PDF Patterns
@@ -22,7 +22,7 @@ Extraction caveats that parser accounts for:
 - Wrapped rows where date/amount and narration may split across lines.
 - OCR/font artifacts (`(cid:...)`, duplicated characters, broken spacing).
 - Mixed separators (`|`, irregular spaces, merged tokens).
-- Credit markers (for example, `CR`) that indicate refunds/payments.
+- Credit markers (for example, `CR` or bare `C`/`D` for SBI) that indicate refunds/payments.
 
 ## Normalized Output Model
 
@@ -62,6 +62,17 @@ Key top-level fields in compact output:
 - statement-level due amount,
 - parsed debit/credit totals,
 - and derived deltas.
+
+The **smart delta** (`smart_expected_total`) accounts for previous balance:
+
+    expected = previous_balance + parsed_debits + fees - parsed_credits
+
+A near-zero smart delta confirms all transactions are captured.
+
+When previous balance exists and credits cover it, the reconciliation also reports:
+
+- **Previous Balance Cleared On**: the date cumulative credits first exceeded the previous balance.
+- **Excess Paid After Clearing**: `total_credits - previous_balance` — the portion that went toward current-cycle charges.
 
 This is meant for auditing parser behavior and identifying edge cases.
 

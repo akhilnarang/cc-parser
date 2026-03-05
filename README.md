@@ -1,6 +1,6 @@
 ## cc-parser
 
-PDF statement extractor for credit card statements (HDFC, ICICI, and similar).
+PDF statement extractor for credit card statements (HDFC, ICICI, SBI, and similar).
 
 This code has entirely been written by `gpt-5.3-codex` and improved by Claude Opus 4.6.
 
@@ -16,7 +16,7 @@ Default output extracts:
 - totals by person/card (`transaction_count`, `total_amount`, `reward_points_total`)
 - person groups with totals
 - overall debit spend total and overall reward points
-- reconciliation metrics (`statement` vs parsed totals)
+- reconciliation metrics (smart delta, previous balance clearing date, excess payments)
 
 Regular run prints tables to terminal and does not write JSON.
 
@@ -59,6 +59,7 @@ Parser selection (optional):
 uv run cc-parser /path/to/statement.pdf --bank auto
 uv run cc-parser /path/to/statement.pdf --bank hdfc
 uv run cc-parser /path/to/statement.pdf --bank icici
+uv run cc-parser /path/to/statement.pdf --bank sbi
 ```
 
 Extra debug bundle (best for sharing parser issues):

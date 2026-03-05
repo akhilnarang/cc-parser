@@ -173,7 +173,16 @@ def build_reconciliation(
     credit_transactions: list[dict[str, str | None]],
     summary_fields: dict[str, str | list[str] | None],
 ) -> dict[str, str | list[str] | None]:
-    """Build reconciliation metrics across statement/header/parsed totals."""
+    """Build reconciliation metrics across statement/header/parsed totals.
+
+    The "smart" reconciliation computes:
+        expected = previous_balance + parsed_debits + fees - parsed_credits
+
+    This accounts for the fact that credit transactions include both
+    payments toward previous dues *and* advance payments/refunds for
+    current-cycle charges.  When the delta is near zero, all transactions
+    are accounted for.
+    """
 
     def _str_field(value: str | list[str] | None) -> str | None:
         return value if isinstance(value, str) else None
@@ -190,28 +199,59 @@ def build_reconciliation(
     received = _to_decimal(_str_field(summary_fields.get("payments_credits_received")))
     header_computed_due = prev_dues + purchases + finance - received
 
-    return {
+    # Smart reconciliation: expected = prev_balance + parsed_debits + fees - parsed_credits
+    # This should equal the statement total when all transactions are captured.
+    smart_expected = prev_dues + debit_total + finance - credit_total
+    smart_delta = statement_due - smart_expected
+
+    # Determine when previous balance was fully cleared by payments
+    prev_balance_cleared_date: str | None = None
+    excess_after_clearing: str | None = None
+    if prev_dues > 0 and credit_transactions:
+        dated_credits = []
+        for txn in credit_transactions:
+            dt = _parse_txn_date(str(txn.get("date") or ""))
+            amount = parse_amount(str(txn.get("amount") or "0"))
+            if dt and amount > 0:
+                dated_credits.append((dt, amount))
+        dated_credits.sort(key=lambda x: x[0])
+
+        running = Decimal("0")
+        for dt, amount in dated_credits:
+            running += amount
+            if running >= prev_dues:
+                prev_balance_cleared_date = dt.strftime("%d/%m/%Y")
+                break
+
+        # Excess is total credits minus previous balance — the portion that
+        # went toward current-cycle charges rather than clearing old dues.
+        excess_after_clearing = format_amount(credit_total - prev_dues)
+
+    result: dict[str, str | list[str] | None] = {
         "statement_total_amount_due": statement_total_amount_due,
         "parsed_debit_total": format_amount(debit_total),
         "parsed_credit_total": format_amount(credit_total),
         "parsed_net_due_estimate": format_amount(parsed_net_due),
-        "delta_statement_vs_parsed_debit": format_amount(statement_due - debit_total),
-        "delta_statement_vs_parsed_net": format_amount(statement_due - parsed_net_due),
-        "header_previous_statement_dues": str(
-            summary_fields.get("previous_statement_dues") or ""
-        ),
+        "header_previous_balance": format_amount(prev_dues),
         "header_purchases_debit": str(summary_fields.get("purchases_debit") or ""),
         "header_finance_charges": str(summary_fields.get("finance_charges") or ""),
         "header_payments_credits_received": str(
             summary_fields.get("payments_credits_received") or ""
         ),
         "header_computed_due_estimate": format_amount(header_computed_due),
+        "smart_expected_total": format_amount(smart_expected),
+        "smart_delta": format_amount(smart_delta),
+        "prev_balance_cleared_date": prev_balance_cleared_date,
+        "excess_paid_after_clearing": excess_after_clearing,
+        "delta_statement_vs_parsed_debit": format_amount(statement_due - debit_total),
+        "delta_statement_vs_parsed_net": format_amount(statement_due - parsed_net_due),
         "delta_statement_vs_header_estimate": format_amount(
             statement_due - header_computed_due
         ),
         "summary_amount_candidates": summary_fields.get("summary_amount_candidates")
         or [],
     }
+    return result
 
 
 def _parse_txn_date(value: str | None) -> datetime | None:
@@ -240,6 +280,9 @@ def split_paired_adjustments(
 
     credit_buckets: dict[tuple[str, str, str], list[int]] = {}
     for idx, txn in enumerate(credit_transactions):
+        narration_upper = str(txn.get("narration") or "").upper()
+        if "PAYMENT" in narration_upper and "RECEIVED" in narration_upper:
+            continue
         key = (
             str(txn.get("card_number") or "UNKNOWN"),
             str(txn.get("person") or "UNKNOWN"),

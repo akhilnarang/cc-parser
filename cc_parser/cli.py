@@ -28,6 +28,7 @@ class BankOption(str, Enum):
     auto = "auto"
     icici = "icici"
     hdfc = "hdfc"
+    sbi = "sbi"
     generic = "generic"
 
 
@@ -288,6 +289,10 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
             str(reconciliation.get("statement_total_amount_due") or ""),
         )
         recon_table.add_row(
+            "Previous Balance",
+            str(reconciliation.get("header_previous_balance") or ""),
+        )
+        recon_table.add_row(
             "Parsed Debit Total",
             str(reconciliation.get("parsed_debit_total") or ""),
         )
@@ -296,9 +301,23 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
             str(reconciliation.get("parsed_credit_total") or ""),
         )
         recon_table.add_row(
-            "Delta (Statement - Debits)",
-            str(reconciliation.get("delta_statement_vs_parsed_debit") or ""),
+            "Smart Expected Total (prev + debits + fees - credits)",
+            str(reconciliation.get("smart_expected_total") or ""),
         )
+        recon_table.add_row(
+            "Smart Delta (statement - expected)",
+            str(reconciliation.get("smart_delta") or ""),
+        )
+        cleared_date = reconciliation.get("prev_balance_cleared_date")
+        if cleared_date:
+            recon_table.add_row(
+                "Previous Balance Cleared On",
+                str(cleared_date),
+            )
+            recon_table.add_row(
+                "Excess Paid After Clearing",
+                str(reconciliation.get("excess_paid_after_clearing") or "0.00"),
+            )
         recon_table.add_row(
             "Delta (Statement - Net)",
             str(reconciliation.get("delta_statement_vs_parsed_net") or ""),

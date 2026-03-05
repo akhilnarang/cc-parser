@@ -5,7 +5,7 @@ This document describes the normalized parser output.
 ## Top-Level Fields
 
 - `file` (`string`): input PDF path.
-- `bank` (`string`): parser profile (`hdfc`, `icici`, or `generic`).
+- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, or `generic`).
 - `name` (`string | null`): primary cardholder name.
 - `card_number` (`string | null`): primary masked card number.
 - `due_date` (`string | null`): detected due date.
@@ -57,7 +57,21 @@ Each row in `transactions` and `payments_refunds` includes:
 ## Reconciliation
 
 `reconciliation` is intended for diagnostics, not hard validation.
-Current fields include parsed totals and deltas against statement-level fields.
+
+Fields:
+
+- `statement_total_amount_due` (`string | null`)
+- `header_previous_balance` (`string`): previous balance from account summary.
+- `parsed_debit_total` (`string`)
+- `parsed_credit_total` (`string`)
+- `parsed_net_due_estimate` (`string`): debits minus credits.
+- `smart_expected_total` (`string`): `previous_balance + debits + fees - credits`.
+- `smart_delta` (`string`): `statement_total - smart_expected`. Near zero when all transactions are captured.
+- `prev_balance_cleared_date` (`string | null`): date when cumulative credits first exceeded previous balance.
+- `excess_paid_after_clearing` (`string | null`): `total_credits - previous_balance` (portion toward current-cycle charges).
+- `header_purchases_debit`, `header_finance_charges`, `header_payments_credits_received`, `header_computed_due_estimate`: raw summary fields.
+- `delta_statement_vs_parsed_debit`, `delta_statement_vs_parsed_net`, `delta_statement_vs_header_estimate`: legacy deltas.
+- `summary_amount_candidates` (`array`): raw amounts found in summary area.
 
 ## Verbosity Modes
 

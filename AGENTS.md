@@ -45,6 +45,9 @@ Primary goals:
 - `cc_parser/parsers/icici.py`
   - ICICI-specific normalization (especially add-on grouping labels).
 
+- `cc_parser/parsers/sbi.py`
+  - SBI-specific extraction (multi-token dates, bare C/D markers, account summary).
+
 ## Parser Contract
 
 All parsers must implement `StatementParser.parse(raw_data)` and return the same compact shape.
