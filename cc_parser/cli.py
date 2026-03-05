@@ -21,6 +21,7 @@ import typer
 
 from cc_parser.extractor import extract_raw_pdf, is_pdf_encrypted
 from cc_parser.parsers.factory import detect_bank, get_parser
+from cc_parser.parsers.models import ParsedStatement, Transaction
 from cc_parser.parsers.tokens import parse_amount
 
 
@@ -32,7 +33,7 @@ class BankOption(str, Enum):
     generic = "generic"
 
 
-def _has_visible_rewards(rows: list[dict[str, Any]]) -> bool:
+def _has_visible_rewards(rows: list[Transaction]) -> bool:
     """Return True if at least one row has non-zero/non-empty reward points.
 
     Args:
@@ -42,7 +43,7 @@ def _has_visible_rewards(rows: list[dict[str, Any]]) -> bool:
         True when reward column should be shown.
     """
     for row in rows:
-        value = str(row.get("reward_points") or "").strip()
+        value = str(row.reward_points or "").strip()
         if not value:
             continue
         if value in {"0", "0.0", "0.00"}:
@@ -51,11 +52,11 @@ def _has_visible_rewards(rows: list[dict[str, Any]]) -> bool:
     return False
 
 
-def write_transactions_csv(parsed: dict[str, Any], output_path: Path) -> None:
+def write_transactions_csv(parsed: ParsedStatement, output_path: Path) -> None:
     """Write flattened transaction rows for spreadsheet analysis.
 
     Args:
-        parsed: Parsed compact output.
+        parsed: Parsed statement model.
         output_path: Destination CSV path.
 
     Returns:
@@ -81,19 +82,17 @@ def write_transactions_csv(parsed: dict[str, Any], output_path: Path) -> None:
     ]
 
     rows: list[dict[str, str]] = []
-    bank = str(parsed.get("bank") or "")
-    file_name = str(parsed.get("file") or "")
+    bank = parsed.bank or ""
+    file_name = parsed.file or ""
 
-    def add_row(source: str, txn: dict[str, Any]) -> None:
-        amount_text = str(txn.get("amount") or "0")
+    def add_row(source: str, txn: Transaction) -> None:
+        amount_text = str(txn.amount or "0")
         amount_decimal = parse_amount(amount_text)
-        txn_type = str(txn.get("transaction_type") or "")
-        adjustment_side = str(txn.get("adjustment_side") or "")
+        txn_type = str(txn.transaction_type or "")
+        adj_side = str(txn.adjustment_side or "")
 
         is_credit = (
-            source == "payments_refunds"
-            or adjustment_side == "credit"
-            or txn_type == "credit"
+            source == "payments_refunds" or adj_side == "credit" or txn_type == "credit"
         )
         signed = -amount_decimal if is_credit else amount_decimal
         spend_amount = amount_decimal if source == "transactions" else parse_amount("0")
@@ -105,13 +104,13 @@ def write_transactions_csv(parsed: dict[str, Any], output_path: Path) -> None:
                 "file": file_name,
                 "source": source,
                 "transaction_type": txn_type,
-                "adjustment_side": adjustment_side,
-                "person": str(txn.get("person") or ""),
-                "card_number": str(txn.get("card_number") or ""),
-                "date": str(txn.get("date") or ""),
-                "time": str(txn.get("time") or ""),
-                "narration": str(txn.get("narration") or ""),
-                "reward_points": str(txn.get("reward_points") or ""),
+                "adjustment_side": adj_side,
+                "person": str(txn.person or ""),
+                "card_number": str(txn.card_number or ""),
+                "date": str(txn.date or ""),
+                "time": str(txn.time or ""),
+                "narration": str(txn.narration or ""),
+                "reward_points": str(txn.reward_points or ""),
                 "amount": amount_text,
                 "amount_numeric": f"{amount_decimal:.2f}",
                 "signed_amount": f"{signed:.2f}",
@@ -120,11 +119,11 @@ def write_transactions_csv(parsed: dict[str, Any], output_path: Path) -> None:
             }
         )
 
-    for txn in parsed.get("transactions", []):
+    for txn in parsed.transactions:
         add_row("transactions", txn)
-    for txn in parsed.get("payments_refunds", []):
+    for txn in parsed.payments_refunds:
         add_row("payments_refunds", txn)
-    for txn in parsed.get("adjustments", []):
+    for txn in parsed.adjustments:
         add_row("adjustments", txn)
 
     with output_path.open("w", newline="", encoding="utf-8") as csv_file:
@@ -133,32 +132,32 @@ def write_transactions_csv(parsed: dict[str, Any], output_path: Path) -> None:
         writer.writerows(rows)
 
 
-def print_compact_table(output_data: dict[str, Any]) -> None:
+def print_compact_table(output_data: ParsedStatement) -> None:
     """Render parsed output as Rich tables.
 
     Args:
-        output_data: Parsed compact output dictionary.
+        output_data: Parsed statement model.
 
     Returns:
         None. Writes tables to stdout.
     """
     console = Console()
-    name = output_data.get("name") or "-"
-    card_number = output_data.get("card_number") or "-"
-    due_date = output_data.get("due_date") or "-"
-    bank = output_data.get("bank") or "-"
-    transactions = output_data.get("transactions", [])
-    person_groups = output_data.get("person_groups", [])
-    payments_refunds = output_data.get("payments_refunds", [])
-    payments_refunds_total = output_data.get("payments_refunds_total") or "0.00"
-    adjustments = output_data.get("adjustments", [])
-    adjustments_debit_total = output_data.get("adjustments_debit_total") or "0.00"
-    adjustments_credit_total = output_data.get("adjustments_credit_total") or "0.00"
-    card_summaries = output_data.get("card_summaries", [])
-    overall_total = output_data.get("overall_total") or "0.00"
-    overall_reward_points = output_data.get("overall_reward_points") or "0"
-    statement_total_amount_due = output_data.get("statement_total_amount_due") or "-"
-    reconciliation = output_data.get("reconciliation") or {}
+    name = output_data.name or "-"
+    card_number = output_data.card_number or "-"
+    due_date = output_data.due_date or "-"
+    bank = output_data.bank or "-"
+    transactions = output_data.transactions
+    person_groups = output_data.person_groups
+    payments_refunds = output_data.payments_refunds
+    payments_refunds_total = output_data.payments_refunds_total or "0.00"
+    adjustments = output_data.adjustments
+    adjustments_debit_total = output_data.adjustments_debit_total or "0.00"
+    adjustments_credit_total = output_data.adjustments_credit_total or "0.00"
+    card_summaries = output_data.card_summaries
+    overall_total = output_data.overall_total or "0.00"
+    overall_reward_points = output_data.overall_reward_points or "0"
+    statement_total_amount_due = output_data.statement_total_amount_due or "-"
+    reconciliation = output_data.reconciliation
 
     console.print(f"Bank: {bank}")
     console.print(f"Name: {name}")
@@ -176,11 +175,11 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
 
         for txn in payments_refunds:
             credit_table.add_row(
-                str(txn.get("date") or ""),
-                str(txn.get("time") or ""),
-                str(txn.get("person") or ""),
-                str(txn.get("narration") or ""),
-                str(txn.get("amount") or ""),
+                str(txn.date or ""),
+                str(txn.time or ""),
+                str(txn.person or ""),
+                str(txn.narration or ""),
+                str(txn.amount or ""),
             )
 
         console.print(credit_table)
@@ -195,11 +194,11 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
         adj_table.add_column("Amount", justify="right", style="magenta")
         for txn in adjustments:
             adj_table.add_row(
-                str(txn.get("date") or ""),
-                str(txn.get("adjustment_side") or ""),
-                str(txn.get("person") or ""),
-                str(txn.get("narration") or ""),
-                str(txn.get("amount") or ""),
+                str(txn.date or ""),
+                str(txn.adjustment_side or ""),
+                str(txn.person or ""),
+                str(txn.narration or ""),
+                str(txn.amount or ""),
             )
         console.print(adj_table)
         console.print(
@@ -208,8 +207,8 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
 
     if person_groups:
         for group in person_groups:
-            person = str(group.get("person") or "UNKNOWN")
-            group_rows = list(group.get("transactions", []))
+            person = group.person or "UNKNOWN"
+            group_rows = group.transactions
             show_reward_col = _has_visible_rewards(group_rows)
             table = Table(title=f"Transactions - {person}")
             table.add_column("Date", style="cyan", no_wrap=True)
@@ -221,19 +220,19 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
 
             for txn in group_rows:
                 cells = [
-                    str(txn.get("date") or ""),
-                    str(txn.get("time") or ""),
-                    str(txn.get("narration") or ""),
+                    str(txn.date or ""),
+                    str(txn.time or ""),
+                    str(txn.narration or ""),
                 ]
                 if show_reward_col:
-                    cells.append(str(txn.get("reward_points") or ""))
-                cells.append(str(txn.get("amount") or ""))
+                    cells.append(str(txn.reward_points or ""))
+                cells.append(str(txn.amount or ""))
                 table.add_row(*cells)
 
             console.print(table)
             console.print(
-                f"{person} totals -> Amount: {group.get('total_amount', '0.00')} | "
-                f"Points: {group.get('reward_points_total', '0')}"
+                f"{person} totals -> Amount: {group.total_amount or '0.00'} | "
+                f"Points: {group.reward_points_total or '0'}"
             )
     else:
         show_reward_col = _has_visible_rewards(transactions)
@@ -248,14 +247,14 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
 
         for txn in transactions:
             cells = [
-                str(txn.get("date") or ""),
-                str(txn.get("time") or ""),
-                str(txn.get("person") or ""),
-                str(txn.get("narration") or ""),
+                str(txn.date or ""),
+                str(txn.time or ""),
+                str(txn.person or ""),
+                str(txn.narration or ""),
             ]
             if show_reward_col:
-                cells.append(str(txn.get("reward_points") or ""))
-            cells.append(str(txn.get("amount") or ""))
+                cells.append(str(txn.reward_points or ""))
+            cells.append(str(txn.amount or ""))
             table.add_row(*cells)
 
         console.print(table)
@@ -269,60 +268,58 @@ def print_compact_table(output_data: dict[str, Any]) -> None:
 
     for row in card_summaries:
         summary_table.add_row(
-            str(row.get("person") or ""),
-            str(row.get("card_number") or ""),
-            str(row.get("transaction_count") or "0"),
-            str(row.get("reward_points_total") or "0"),
-            str(row.get("total_amount") or "0.00"),
+            str(row.person or ""),
+            str(row.card_number or ""),
+            str(row.transaction_count),
+            str(row.reward_points_total or "0"),
+            str(row.total_amount or "0.00"),
         )
 
     console.print(summary_table)
     console.print(f"Spend Total (debits only): {overall_total}")
     console.print(f"Reward Points (debits only): {overall_reward_points}")
 
-    if reconciliation:
-        recon_table = Table(title="Reconciliation")
-        recon_table.add_column("Metric", style="white")
-        recon_table.add_column("Value", style="magenta")
+    recon_table = Table(title="Reconciliation")
+    recon_table.add_column("Metric", style="white")
+    recon_table.add_column("Value", style="magenta")
+    recon_table.add_row(
+        "Statement Total Amount Due",
+        str(reconciliation.statement_total_amount_due or ""),
+    )
+    recon_table.add_row(
+        "Previous Balance",
+        str(reconciliation.header_previous_balance or ""),
+    )
+    recon_table.add_row(
+        "Parsed Debit Total",
+        str(reconciliation.parsed_debit_total or ""),
+    )
+    recon_table.add_row(
+        "Parsed Credit Total",
+        str(reconciliation.parsed_credit_total or ""),
+    )
+    recon_table.add_row(
+        "Smart Expected Total (prev + debits + fees - credits)",
+        str(reconciliation.smart_expected_total or ""),
+    )
+    recon_table.add_row(
+        "Smart Delta (statement - expected)",
+        str(reconciliation.smart_delta or ""),
+    )
+    if reconciliation.prev_balance_cleared_date:
         recon_table.add_row(
-            "Statement Total Amount Due",
-            str(reconciliation.get("statement_total_amount_due") or ""),
+            "Previous Balance Cleared On",
+            str(reconciliation.prev_balance_cleared_date),
         )
         recon_table.add_row(
-            "Previous Balance",
-            str(reconciliation.get("header_previous_balance") or ""),
+            "Excess Paid After Clearing",
+            str(reconciliation.excess_paid_after_clearing or "0.00"),
         )
-        recon_table.add_row(
-            "Parsed Debit Total",
-            str(reconciliation.get("parsed_debit_total") or ""),
-        )
-        recon_table.add_row(
-            "Parsed Credit Total",
-            str(reconciliation.get("parsed_credit_total") or ""),
-        )
-        recon_table.add_row(
-            "Smart Expected Total (prev + debits + fees - credits)",
-            str(reconciliation.get("smart_expected_total") or ""),
-        )
-        recon_table.add_row(
-            "Smart Delta (statement - expected)",
-            str(reconciliation.get("smart_delta") or ""),
-        )
-        cleared_date = reconciliation.get("prev_balance_cleared_date")
-        if cleared_date:
-            recon_table.add_row(
-                "Previous Balance Cleared On",
-                str(cleared_date),
-            )
-            recon_table.add_row(
-                "Excess Paid After Clearing",
-                str(reconciliation.get("excess_paid_after_clearing") or "0.00"),
-            )
-        recon_table.add_row(
-            "Delta (Statement - Net)",
-            str(reconciliation.get("delta_statement_vs_parsed_net") or ""),
-        )
-        console.print(recon_table)
+    recon_table.add_row(
+        "Delta (Statement - Net)",
+        str(reconciliation.delta_statement_vs_parsed_net or ""),
+    )
+    console.print(recon_table)
 
 
 def extract_with_password_prompt(
@@ -431,36 +428,41 @@ def parse_statement(
 
     parser_impl = get_parser(bank.value, raw_data)
     parsed = parser_impl.parse(raw_data)
-    parsed["bank_detected"] = detect_bank(raw_data)
-    parsed["bank_parser"] = parser_impl.bank
 
     print_compact_table(parsed)
-    typer.echo(f"Transactions: {len(parsed.get('transactions', []))}")
+    typer.echo(f"Transactions: {len(parsed.transactions)}")
 
     if verbose > 0:
         output_path: Path = output or (Path.cwd() / f"run_{uuid.uuid7().hex}.json")
+        parsed_dict = parsed.model_dump()
+        parsed_dict["bank_detected"] = detect_bank(raw_data)
+        parsed_dict["bank_parser"] = parser_impl.bank
+
         if verbose >= 3:
-            output_data = {
-                "parsed": parsed,
+            output_obj: Any = {
+                "parsed": parsed_dict,
                 "debug": parser_impl.build_debug(raw_data),
                 "raw": raw_data,
             }
         elif verbose == 2:
-            output_data = {
-                "parsed": parsed,
+            output_obj = {
+                "parsed": parsed_dict,
                 "debug": parser_impl.build_debug(raw_data),
             }
         else:
-            output_data = parsed
+            output_obj = parsed_dict
 
         output_path.write_text(
-            json.dumps(output_data, indent=2, ensure_ascii=True), encoding="utf-8"
+            json.dumps(output_obj, indent=2, ensure_ascii=True), encoding="utf-8"
         )
         typer.echo(f"Wrote extraction to {output_path}")
 
     if export_json is not None:
+        parsed_dict = parsed.model_dump()
+        parsed_dict["bank_detected"] = detect_bank(raw_data)
+        parsed_dict["bank_parser"] = parser_impl.bank
         export_json.write_text(
-            json.dumps(parsed, indent=2, ensure_ascii=True), encoding="utf-8"
+            json.dumps(parsed_dict, indent=2, ensure_ascii=True), encoding="utf-8"
         )
         typer.echo(f"Wrote parsed JSON to {export_json}")
 

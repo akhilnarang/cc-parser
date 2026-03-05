@@ -6,6 +6,7 @@ Currently extends generic parser behavior. Keep HDFC-specific tweaks here.
 from typing import Any
 
 from cc_parser.parsers.generic import GenericParser
+from cc_parser.parsers.models import ParsedStatement
 
 
 class HdfcParser(GenericParser):
@@ -13,7 +14,7 @@ class HdfcParser(GenericParser):
 
     bank = "hdfc"
 
-    def parse(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+    def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Parse HDFC statement payload using shared generic logic.
 
         Args:
@@ -23,5 +24,5 @@ class HdfcParser(GenericParser):
             Normalized statement output for HDFC profile.
         """
         parsed = super().parse(raw_data)
-        parsed["bank"] = self.bank
+        parsed.bank = self.bank
         return parsed

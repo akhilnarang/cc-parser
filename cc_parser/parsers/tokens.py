@@ -4,8 +4,14 @@ Regex constants and helpers for parsing dates, times, amounts, and
 other atomic tokens extracted from PDF word lists.
 """
 
+from __future__ import annotations
+
 import re
 from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cc_parser.parsers.models import Transaction
 
 DATE_RE = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 TIME_RE = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
@@ -75,19 +81,19 @@ def format_amount(value: Decimal) -> str:
     return f"{value:,.2f}"
 
 
-def sum_amounts(transactions: list[dict], key: str = "amount") -> Decimal:
-    """Sum a decimal field across transaction rows."""
+def sum_amounts(transactions: list[Transaction]) -> Decimal:
+    """Sum the amount field across transaction rows."""
     total = Decimal("0")
     for txn in transactions:
-        total += parse_amount(str(txn.get(key) or "0"))
+        total += parse_amount(str(txn.amount or "0"))
     return total
 
 
-def sum_points(transactions: list[dict]) -> Decimal:
+def sum_points(transactions: list[Transaction]) -> Decimal:
     """Sum reward points across transaction rows."""
     total = Decimal("0")
     for txn in transactions:
-        total += parse_points(txn.get("reward_points"))
+        total += parse_points(txn.reward_points)
     return total
 
 

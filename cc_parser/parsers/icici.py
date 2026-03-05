@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from cc_parser.parsers.generic import GenericParser
+from cc_parser.parsers.models import ParsedStatement
 from cc_parser.parsers.tokens import format_amount, sum_amounts
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
@@ -57,7 +58,7 @@ class IciciParser(GenericParser):
 
     bank = "icici"
 
-    def parse(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+    def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Parse ICICI statements with add-on specific normalization.
 
         Args:
@@ -67,18 +68,18 @@ class IciciParser(GenericParser):
             Normalized statement output with ICICI-specific person grouping.
         """
         parsed = super().parse(raw_data)
-        parsed["bank"] = self.bank
+        parsed.bank = self.bank
 
-        debit_transactions = parsed.get("transactions", [])
-        credit_transactions = parsed.get("payments_refunds", [])
+        debit_transactions = parsed.transactions
+        credit_transactions = parsed.payments_refunds
         all_rows = [*debit_transactions, *credit_transactions]
 
-        primary_name = str(parsed.get("name") or "").upper() or None
-        primary_card = parsed.get("card_number")
+        primary_name = (parsed.name or "").upper() or None
+        primary_card = parsed.card_number
 
         card_order: list[str] = []
         for txn in all_rows:
-            card = str(txn.get("card_number") or "UNKNOWN")
+            card = txn.card_number or "UNKNOWN"
             if card not in card_order:
                 card_order.append(card)
 
@@ -89,10 +90,10 @@ class IciciParser(GenericParser):
                 continue
 
             candidate_names = [
-                str(txn.get("person") or "").upper()
+                (txn.person or "").upper()
                 for txn in all_rows
-                if str(txn.get("card_number") or "UNKNOWN") == card
-                and _looks_like_real_name(str(txn.get("person") or ""))
+                if (txn.card_number or "UNKNOWN") == card
+                and _looks_like_real_name(txn.person)
             ]
             if candidate_names:
                 card_person_map[card] = candidate_names[0]
@@ -102,10 +103,8 @@ class IciciParser(GenericParser):
                 )
 
         for txn in all_rows:
-            card = str(txn.get("card_number") or "UNKNOWN")
-            txn["person"] = card_person_map.get(
-                card, str(txn.get("person") or "UNKNOWN")
-            )
+            card = txn.card_number or "UNKNOWN"
+            txn.person = card_person_map.get(card, txn.person or "UNKNOWN")
 
         card_summaries, overall_total = build_card_summaries(
             debit_transactions, primary_name
@@ -114,9 +113,9 @@ class IciciParser(GenericParser):
 
         credit_total = sum_amounts(credit_transactions)
 
-        parsed["card_summaries"] = card_summaries
-        parsed["overall_total"] = overall_total
-        parsed["person_groups"] = person_groups
-        parsed["payments_refunds_total"] = format_amount(credit_total)
+        parsed.card_summaries = card_summaries
+        parsed.overall_total = overall_total
+        parsed.person_groups = person_groups
+        parsed.payments_refunds_total = format_amount(credit_total)
 
         return parsed

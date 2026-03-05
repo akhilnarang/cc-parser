@@ -5,6 +5,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from cc_parser.parsers.models import (
+    CardSummary,
+    PersonGroup,
+    Reconciliation,
+    StatementSummary,
+    Transaction,
+)
 from cc_parser.parsers.tokens import (
     clean_space,
     format_amount,
@@ -117,7 +124,7 @@ def extract_total_amount_due(full_text: str) -> str | None:
     return None
 
 
-def extract_statement_summary(full_text: str) -> dict[str, str | list[str] | None]:
+def extract_statement_summary(full_text: str) -> StatementSummary:
     """Extract summary block amount candidates and heuristic field mapping.
 
     Note: the positional mapping (indices 0-4) is fragile and depends on
@@ -142,21 +149,14 @@ def extract_statement_summary(full_text: str) -> dict[str, str | list[str] | Non
         if value not in unique_amounts:
             unique_amounts.append(value)
 
-    summary: dict[str, str | list[str] | None] = {
-        "summary_amount_candidates": unique_amounts,
-        "payments_credits_received": None,
-        "previous_statement_dues": None,
-        "purchases_debit": None,
-        "finance_charges": None,
-        "equation_tail": None,
-    }
+    summary = StatementSummary(summary_amount_candidates=unique_amounts)
 
     if len(unique_amounts) >= 5:
-        summary["payments_credits_received"] = unique_amounts[0]
-        summary["previous_statement_dues"] = unique_amounts[1]
-        summary["purchases_debit"] = unique_amounts[2]
-        summary["finance_charges"] = unique_amounts[3]
-        summary["equation_tail"] = unique_amounts[4]
+        summary.payments_credits_received = unique_amounts[0]
+        summary.previous_statement_dues = unique_amounts[1]
+        summary.purchases_debit = unique_amounts[2]
+        summary.finance_charges = unique_amounts[3]
+        summary.equation_tail = unique_amounts[4]
 
     return summary
 
@@ -169,10 +169,10 @@ def _to_decimal(amount: str | None) -> Decimal:
 
 def build_reconciliation(
     statement_total_amount_due: str | None,
-    debit_transactions: list[dict[str, str | None]],
-    credit_transactions: list[dict[str, str | None]],
-    summary_fields: dict[str, str | list[str] | None],
-) -> dict[str, str | list[str] | None]:
+    debit_transactions: list[Transaction],
+    credit_transactions: list[Transaction],
+    summary_fields: StatementSummary,
+) -> Reconciliation:
     """Build reconciliation metrics across statement/header/parsed totals.
 
     The "smart" reconciliation computes:
@@ -183,20 +183,16 @@ def build_reconciliation(
     current-cycle charges.  When the delta is near zero, all transactions
     are accounted for.
     """
-
-    def _str_field(value: str | list[str] | None) -> str | None:
-        return value if isinstance(value, str) else None
-
     debit_total = sum_amounts(debit_transactions)
     credit_total = sum_amounts(credit_transactions)
 
     statement_due = _to_decimal(statement_total_amount_due)
     parsed_net_due = debit_total - credit_total
 
-    prev_dues = _to_decimal(_str_field(summary_fields.get("previous_statement_dues")))
-    purchases = _to_decimal(_str_field(summary_fields.get("purchases_debit")))
-    finance = _to_decimal(_str_field(summary_fields.get("finance_charges")))
-    received = _to_decimal(_str_field(summary_fields.get("payments_credits_received")))
+    prev_dues = _to_decimal(summary_fields.previous_statement_dues)
+    purchases = _to_decimal(summary_fields.purchases_debit)
+    finance = _to_decimal(summary_fields.finance_charges)
+    received = _to_decimal(summary_fields.payments_credits_received)
     header_computed_due = prev_dues + purchases + finance - received
 
     # Smart reconciliation: expected = prev_balance + parsed_debits + fees - parsed_credits
@@ -210,8 +206,8 @@ def build_reconciliation(
     if prev_dues > 0 and credit_transactions:
         dated_credits = []
         for txn in credit_transactions:
-            dt = _parse_txn_date(str(txn.get("date") or ""))
-            amount = parse_amount(str(txn.get("amount") or "0"))
+            dt = _parse_txn_date(txn.date)
+            amount = parse_amount(str(txn.amount or "0"))
             if dt and amount > 0:
                 dated_credits.append((dt, amount))
         dated_credits.sort(key=lambda x: x[0])
@@ -227,31 +223,27 @@ def build_reconciliation(
         # went toward current-cycle charges rather than clearing old dues.
         excess_after_clearing = format_amount(credit_total - prev_dues)
 
-    result: dict[str, str | list[str] | None] = {
-        "statement_total_amount_due": statement_total_amount_due,
-        "parsed_debit_total": format_amount(debit_total),
-        "parsed_credit_total": format_amount(credit_total),
-        "parsed_net_due_estimate": format_amount(parsed_net_due),
-        "header_previous_balance": format_amount(prev_dues),
-        "header_purchases_debit": str(summary_fields.get("purchases_debit") or ""),
-        "header_finance_charges": str(summary_fields.get("finance_charges") or ""),
-        "header_payments_credits_received": str(
-            summary_fields.get("payments_credits_received") or ""
-        ),
-        "header_computed_due_estimate": format_amount(header_computed_due),
-        "smart_expected_total": format_amount(smart_expected),
-        "smart_delta": format_amount(smart_delta),
-        "prev_balance_cleared_date": prev_balance_cleared_date,
-        "excess_paid_after_clearing": excess_after_clearing,
-        "delta_statement_vs_parsed_debit": format_amount(statement_due - debit_total),
-        "delta_statement_vs_parsed_net": format_amount(statement_due - parsed_net_due),
-        "delta_statement_vs_header_estimate": format_amount(
+    return Reconciliation(
+        statement_total_amount_due=statement_total_amount_due,
+        parsed_debit_total=format_amount(debit_total),
+        parsed_credit_total=format_amount(credit_total),
+        parsed_net_due_estimate=format_amount(parsed_net_due),
+        header_previous_balance=format_amount(prev_dues),
+        header_purchases_debit=summary_fields.purchases_debit or "",
+        header_finance_charges=summary_fields.finance_charges or "",
+        header_payments_credits_received=summary_fields.payments_credits_received or "",
+        header_computed_due_estimate=format_amount(header_computed_due),
+        smart_expected_total=format_amount(smart_expected),
+        smart_delta=format_amount(smart_delta),
+        prev_balance_cleared_date=prev_balance_cleared_date,
+        excess_paid_after_clearing=excess_after_clearing,
+        delta_statement_vs_parsed_debit=format_amount(statement_due - debit_total),
+        delta_statement_vs_parsed_net=format_amount(statement_due - parsed_net_due),
+        delta_statement_vs_header_estimate=format_amount(
             statement_due - header_computed_due
         ),
-        "summary_amount_candidates": summary_fields.get("summary_amount_candidates")
-        or [],
-    }
-    return result
+        summary_amount_candidates=summary_fields.summary_amount_candidates,
+    )
 
 
 def _parse_txn_date(value: str | None) -> datetime | None:
@@ -264,29 +256,25 @@ def _parse_txn_date(value: str | None) -> datetime | None:
 
 
 def split_paired_adjustments(
-    debit_transactions: list[dict[str, str | None]],
-    credit_transactions: list[dict[str, str | None]],
-) -> tuple[
-    list[dict[str, str | None]],
-    list[dict[str, str | None]],
-    list[dict[str, str | None]],
-]:
+    debit_transactions: list[Transaction],
+    credit_transactions: list[Transaction],
+) -> tuple[list[Transaction], list[Transaction], list[Transaction]]:
     """Split offsetting debit/credit pairs into separate adjustments bucket."""
 
-    def is_contextual_adjustment_debit(txn: dict[str, str | None]) -> bool:
-        narration = str(txn.get("narration") or "").upper()
-        reward = str(txn.get("reward_points") or "").strip()
+    def is_contextual_adjustment_debit(txn: Transaction) -> bool:
+        narration = (txn.narration or "").upper()
+        reward = (txn.reward_points or "").strip()
         return "CREDIT BALANCE REFUND" in narration and reward in {"", "0"}
 
     credit_buckets: dict[tuple[str, str, str], list[int]] = {}
     for idx, txn in enumerate(credit_transactions):
-        narration_upper = str(txn.get("narration") or "").upper()
+        narration_upper = (txn.narration or "").upper()
         if "PAYMENT" in narration_upper and "RECEIVED" in narration_upper:
             continue
         key = (
-            str(txn.get("card_number") or "UNKNOWN"),
-            str(txn.get("person") or "UNKNOWN"),
-            str(txn.get("amount") or "0"),
+            txn.card_number or "UNKNOWN",
+            txn.person or "UNKNOWN",
+            txn.amount or "0",
         )
         credit_buckets.setdefault(key, []).append(idx)
 
@@ -299,20 +287,20 @@ def split_paired_adjustments(
     }
 
     for d_idx, debit in enumerate(debit_transactions):
-        reward_token = str(debit.get("reward_points") or "0").strip()
+        reward_token = (debit.reward_points or "0").strip()
         if reward_token not in {"", "0"}:
             continue
 
         key = (
-            str(debit.get("card_number") or "UNKNOWN"),
-            str(debit.get("person") or "UNKNOWN"),
-            str(debit.get("amount") or "0"),
+            debit.card_number or "UNKNOWN",
+            debit.person or "UNKNOWN",
+            debit.amount or "0",
         )
         candidates = credit_buckets.get(key, [])
         if not candidates:
             continue
 
-        debit_date = _parse_txn_date(str(debit.get("date") or ""))
+        debit_date = _parse_txn_date(debit.date)
         best_idx: int | None = None
         best_distance = 10**9
 
@@ -320,7 +308,7 @@ def split_paired_adjustments(
             if c_idx in used_credit:
                 continue
             credit = credit_transactions[c_idx]
-            credit_date = _parse_txn_date(str(credit.get("date") or ""))
+            credit_date = _parse_txn_date(credit.date)
 
             if debit_date is None or credit_date is None:
                 distance = 999
@@ -335,19 +323,18 @@ def split_paired_adjustments(
             used_debit.add(d_idx)
             used_credit.add(best_idx)
 
-    adjustments: list[dict[str, str | None]] = []
+    adjustments: list[Transaction] = []
     used_debit = used_debit | contextual_debit
 
     for idx in sorted(used_debit):
-        txn = dict(debit_transactions[idx])
-        txn["adjustment_side"] = "debit"
+        update: dict[str, str] = {"adjustment_side": "debit"}
         if idx in contextual_debit:
-            txn["adjustment_reason"] = "credit_balance_refund"
-        adjustments.append(txn)
+            update["adjustment_reason"] = "credit_balance_refund"
+        adjustments.append(debit_transactions[idx].model_copy(update=update))
     for idx in sorted(used_credit):
-        txn = dict(credit_transactions[idx])
-        txn["adjustment_side"] = "credit"
-        adjustments.append(txn)
+        adjustments.append(
+            credit_transactions[idx].model_copy(update={"adjustment_side": "credit"})
+        )
 
     kept_debits = [
         txn for idx, txn in enumerate(debit_transactions) if idx not in used_debit
@@ -359,41 +346,41 @@ def split_paired_adjustments(
 
 
 def group_transactions_by_person(
-    transactions: list[dict[str, str | None]], fallback_name: str | None
-) -> list[dict[str, Any]]:
+    transactions: list[Transaction], fallback_name: str | None
+) -> list[PersonGroup]:
     """Group transactions by person and compute totals/points."""
-    grouped: dict[str, list[dict[str, str | None]]] = {}
+    grouped: dict[str, list[Transaction]] = {}
     for txn in transactions:
-        person = str(txn.get("person") or fallback_name or "UNKNOWN")
+        person = txn.person or fallback_name or "UNKNOWN"
         grouped.setdefault(person, []).append(txn)
 
-    grouped_rows: list[dict[str, Any]] = []
+    grouped_rows: list[PersonGroup] = []
     for person, rows in grouped.items():
         total = sum_amounts(rows)
         points_total = sum_points(rows)
         grouped_rows.append(
-            {
-                "person": person,
-                "transaction_count": len(rows),
-                "total_amount": format_amount(total),
-                "reward_points_total": str(int(points_total)),
-                "transactions": rows,
-            }
+            PersonGroup(
+                person=person,
+                transaction_count=len(rows),
+                total_amount=format_amount(total),
+                reward_points_total=str(int(points_total)),
+                transactions=rows,
+            )
         )
 
-    grouped_rows.sort(key=lambda item: str(item["person"]))
+    grouped_rows.sort(key=lambda item: item.person)
     return grouped_rows
 
 
 def build_card_summaries(
-    transactions: list[dict[str, str | None]], fallback_name: str | None
-) -> tuple[list[dict[str, str | int]], str]:
+    transactions: list[Transaction], fallback_name: str | None
+) -> tuple[list[CardSummary], str]:
     """Build person/card summary totals for parsed transactions."""
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
 
     for txn in transactions:
-        card_number = txn.get("card_number") or "UNKNOWN"
-        person = txn.get("person") or fallback_name or "UNKNOWN"
+        card_number = txn.card_number or "UNKNOWN"
+        person = txn.person or fallback_name or "UNKNOWN"
         key = (card_number, person)
 
         if key not in grouped:
@@ -405,26 +392,26 @@ def build_card_summaries(
                 "transaction_count": 0,
             }
 
-        grouped[key]["total"] += parse_amount(str(txn.get("amount") or "0"))
-        grouped[key]["points_total"] += parse_points(txn.get("reward_points"))
+        grouped[key]["total"] += parse_amount(str(txn.amount or "0"))
+        grouped[key]["points_total"] += parse_points(txn.reward_points)
         grouped[key]["transaction_count"] += 1
 
-    summaries: list[dict[str, str | int]] = []
+    summaries: list[CardSummary] = []
     overall_total = Decimal("0")
     for item in grouped.values():
         total = item["total"]
         overall_total += total
         summaries.append(
-            {
-                "card_number": str(item["card_number"]),
-                "person": str(item["person"]),
-                "transaction_count": int(item["transaction_count"]),
-                "total_amount": format_amount(total),
-                "reward_points_total": str(int(item["points_total"])),
-            }
+            CardSummary(
+                card_number=str(item["card_number"]),
+                person=str(item["person"]),
+                transaction_count=int(item["transaction_count"]),
+                total_amount=format_amount(total),
+                reward_points_total=str(int(item["points_total"])),
+            )
         )
 
-    summaries.sort(key=lambda row: (str(row["person"]), str(row["card_number"])))
+    summaries.sort(key=lambda row: (row.person, row.card_number))
     return summaries, format_amount(overall_total)
 
 

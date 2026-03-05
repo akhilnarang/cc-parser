@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from cc_parser.parsers.models import ParsedStatement
+
 
 class StatementParser(ABC):
     """Base contract for all bank parser implementations.
@@ -14,14 +16,14 @@ class StatementParser(ABC):
     bank: str = "generic"
 
     @abstractmethod
-    def parse(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+    def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Convert raw extractor payload into normalized statement output.
 
         Args:
             raw_data: Raw extraction payload from extractor module.
 
         Returns:
-            Normalized parser output dictionary.
+            Normalized parser output as a ParsedStatement model.
         """
         raise NotImplementedError
 

@@ -8,6 +8,7 @@ reward points, and credit/debit classification.
 import re
 from typing import Any
 
+from cc_parser.parsers.models import Transaction
 from cc_parser.parsers.tokens import (
     SEPARATOR_TOKENS,
     clean_space,
@@ -187,9 +188,9 @@ def _build_narration(
 
 def _extract_transactions_with_debug(
     pages: list[dict[str, Any]],
-) -> tuple[list[dict[str, str | None]], dict[str, Any]]:
+) -> tuple[list[Transaction], dict[str, Any]]:
     """Parse transactions and capture parser diagnostics."""
-    transactions: list[dict[str, str | None]] = []
+    transactions: list[Transaction] = []
     current_card: str | None = None
     current_member: str | None = None
     date_lines: list[dict[str, Any]] = []
@@ -325,24 +326,20 @@ def _extract_transactions_with_debug(
                 )
                 continue
 
-            transactions.append(
-                {
-                    "date": date_value,
-                    "time": time_value,
-                    "narration": narration,
-                    "reward_points": reward_value,
-                    "amount": normalize_amount(amount_value),
-                    "card_number": current_card,
-                    "person": current_member,
-                    "transaction_type": "debit",
-                }
-            )
-
-            # Classify credit transactions
             is_credit, reasons = classify_credit_transaction(tokens)
-            if is_credit:
-                transactions[-1]["transaction_type"] = "credit"
-                transactions[-1]["credit_reasons"] = ",".join(reasons)
+            transactions.append(
+                Transaction(
+                    date=date_value,
+                    time=time_value,
+                    narration=narration,
+                    reward_points=reward_value,
+                    amount=normalize_amount(amount_value),
+                    card_number=current_card,
+                    person=current_member,
+                    transaction_type="credit" if is_credit else "debit",
+                    credit_reasons=",".join(reasons) if is_credit else None,
+                )
+            )
 
     debug = {
         "date_lines": date_lines,
@@ -352,7 +349,7 @@ def _extract_transactions_with_debug(
     return transactions, debug
 
 
-def extract_transactions(pages: list[dict[str, Any]]) -> list[dict[str, str | None]]:
+def extract_transactions(pages: list[dict[str, Any]]) -> list[Transaction]:
     """Parse transactions from raw pages."""
     transactions, _ = _extract_transactions_with_debug(pages)
     return transactions

@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 from cc_parser.parsers.base import StatementParser
+from cc_parser.parsers.models import ParsedStatement, Transaction
 
 # Re-export public helpers so existing callers (icici.py, cli.py, etc.)
 # that import from ``generic`` keep working.
@@ -75,9 +76,9 @@ class GenericParser(StatementParser):
 
     def __init__(self) -> None:
         self._last_txn_debug: dict[str, Any] | None = None
-        self._last_transactions: list[dict[str, str | None]] | None = None
+        self._last_transactions: list[Transaction] | None = None
 
-    def parse(self, raw_data: dict[str, Any]) -> dict[str, Any]:
+    def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Normalize raw extractor payload into compact statement output."""
         full_text = "\n".join(
             str(page.get("text", "")) for page in raw_data.get("pages", [])
@@ -94,23 +95,19 @@ class GenericParser(StatementParser):
         )
         if detected_card:
             for txn in transactions:
-                if not txn.get("card_number"):
-                    txn["card_number"] = detected_card
+                if not txn.card_number:
+                    txn.card_number = detected_card
 
         for txn in transactions:
-            person_value = str(txn.get("person") or "").strip()
+            person_value = (txn.person or "").strip()
             if is_invalid_person_label(person_value):
-                txn["person"] = name
+                txn.person = name
 
         debit_transactions = [
-            txn
-            for txn in transactions
-            if str(txn.get("transaction_type") or "debit") != "credit"
+            txn for txn in transactions if txn.transaction_type != "credit"
         ]
         credit_transactions = [
-            txn
-            for txn in transactions
-            if str(txn.get("transaction_type") or "debit") == "credit"
+            txn for txn in transactions if txn.transaction_type == "credit"
         ]
 
         debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
@@ -127,11 +124,10 @@ class GenericParser(StatementParser):
         adjustments_debit_total = Decimal("0")
         adjustments_credit_total = Decimal("0")
         for txn in adjustments:
-            side = str(txn.get("adjustment_side") or "")
-            amount = parse_amount(str(txn.get("amount") or "0"))
-            if side == "debit":
+            amount = parse_amount(str(txn.amount or "0"))
+            if txn.adjustment_side == "debit":
                 adjustments_debit_total += amount
-            elif side == "credit":
+            elif txn.adjustment_side == "credit":
                 adjustments_credit_total += amount
 
         due_date = extract_due_date(full_text) or extract_due_date_from_pages(
@@ -146,25 +142,25 @@ class GenericParser(StatementParser):
             summary_fields,
         )
 
-        return {
-            "file": raw_data["file"],
-            "bank": self.bank,
-            "name": name,
-            "card_number": detected_card,
-            "due_date": due_date,
-            "statement_total_amount_due": statement_total_amount_due,
-            "card_summaries": card_summaries,
-            "overall_total": overall_total,
-            "person_groups": person_groups,
-            "payments_refunds": credit_transactions,
-            "payments_refunds_total": format_amount(credit_total),
-            "adjustments": adjustments,
-            "adjustments_debit_total": format_amount(adjustments_debit_total),
-            "adjustments_credit_total": format_amount(adjustments_credit_total),
-            "overall_reward_points": str(int(overall_reward_points)),
-            "transactions": debit_transactions,
-            "reconciliation": reconciliation,
-        }
+        return ParsedStatement(
+            file=raw_data["file"],
+            bank=self.bank,
+            name=name,
+            card_number=detected_card,
+            due_date=due_date,
+            statement_total_amount_due=statement_total_amount_due,
+            card_summaries=card_summaries,
+            overall_total=overall_total,
+            person_groups=person_groups,
+            payments_refunds=credit_transactions,
+            payments_refunds_total=format_amount(credit_total),
+            adjustments=adjustments,
+            adjustments_debit_total=format_amount(adjustments_debit_total),
+            adjustments_credit_total=format_amount(adjustments_credit_total),
+            overall_reward_points=str(int(overall_reward_points)),
+            transactions=debit_transactions,
+            reconciliation=reconciliation,
+        )
 
     def build_debug(self, raw_data: dict[str, Any]) -> dict[str, Any]:
         """Build detailed parser diagnostics for troubleshooting mode.
@@ -235,11 +231,7 @@ class GenericParser(StatementParser):
                 "page_count": len(pages),
                 "transactions_parsed": len(transactions),
                 "credit_transactions": len(
-                    [
-                        txn
-                        for txn in transactions
-                        if str(txn.get("transaction_type") or "debit") == "credit"
-                    ]
+                    [txn for txn in transactions if txn.transaction_type == "credit"]
                 ),
                 "date_lines_seen": len(txn_debug["date_lines"]),
                 "date_lines_rejected": len(txn_debug["rejected_date_lines"]),
