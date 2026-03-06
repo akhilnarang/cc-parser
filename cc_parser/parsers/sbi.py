@@ -38,31 +38,19 @@ from cc_parser.parsers.reconciliation import (
     split_paired_adjustments,
 )
 from cc_parser.parsers.tokens import (
+    MONTH_ABBREVS,
     SEPARATOR_TOKENS,
     clean_space,
     format_amount,
     normalize_amount,
+    normalize_date_long,
     normalize_token,
     parse_amount,
     parse_amount_token,
+    parse_multi_token_date,
     sum_amounts,
     sum_points,
 )
-
-MONTH_ABBREVS = {
-    "JAN": "01",
-    "FEB": "02",
-    "MAR": "03",
-    "APR": "04",
-    "MAY": "05",
-    "JUN": "06",
-    "JUL": "07",
-    "AUG": "08",
-    "SEP": "09",
-    "OCT": "10",
-    "NOV": "11",
-    "DEC": "12",
-}
 
 # SBI-specific noise headers that should not be treated as member names
 SBI_NON_MEMBER_HEADERS = {
@@ -85,31 +73,6 @@ SBI_NON_MEMBER_HEADERS = {
     "ACCOUNT SUMMARY",
     "IN THE PRECEDING YEAR",
 }
-
-
-def _parse_sbi_date(tokens: list[str], start: int) -> tuple[str | None, int]:
-    """Try to parse an SBI-style ``DD Mon YY`` date starting at *start*.
-
-    Returns ``(date_str, tokens_consumed)`` where *date_str* is in
-    ``DD/MM/YYYY`` format, or ``(None, 0)`` on failure.
-    """
-    if start + 2 >= len(tokens):
-        return None, 0
-    day = normalize_token(tokens[start])
-    month_tok = normalize_token(tokens[start + 1])
-    year_tok = normalize_token(tokens[start + 2])
-
-    if not re.fullmatch(r"\d{1,2}", day):
-        return None, 0
-    month = MONTH_ABBREVS.get(month_tok.upper())
-    if month is None:
-        return None, 0
-    if not re.fullmatch(r"\d{2,4}", year_tok):
-        return None, 0
-
-    day_padded = day.zfill(2)
-    year = year_tok if len(year_tok) == 4 else f"20{year_tok}"
-    return f"{day_padded}/{month}/{year}", 3
 
 
 def _extract_sbi_name(full_text: str) -> str | None:
@@ -181,7 +144,7 @@ def _extract_sbi_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | 
         flags=re.IGNORECASE,
     )
     if match:
-        return _normalize_sbi_date_long(match.group(1))
+        return normalize_date_long(match.group(1))
 
     # Line-level search: value may be on the next visual line
     for page in pages[:2]:
@@ -199,7 +162,7 @@ def _extract_sbi_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | 
                 r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})", " ".join(tokens)
             )
             if date_match:
-                return _normalize_sbi_date_long(date_match.group(1))
+                return normalize_date_long(date_match.group(1))
 
             # Check the next line
             if i + 1 < len(lines):
@@ -213,19 +176,10 @@ def _extract_sbi_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | 
                     r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})", next_joined
                 )
                 if date_match:
-                    return _normalize_sbi_date_long(date_match.group(1))
+                    return normalize_date_long(date_match.group(1))
 
     return None
 
-
-def _normalize_sbi_date_long(raw: str) -> str:
-    """Convert ``DD Mon YYYY`` to ``DD/MM/YYYY``."""
-    parts = clean_space(raw).split()
-    if len(parts) == 3:
-        month = MONTH_ABBREVS.get(parts[1].upper()[:3])
-        if month:
-            return f"{parts[0].zfill(2)}/{month}/{parts[2]}"
-    return raw
 
 
 def _extract_sbi_total_amount_due(full_text: str) -> str | None:
@@ -301,7 +255,7 @@ def _extract_sbi_transactions(
                 continue
 
             # Try to parse SBI date at the start of the line
-            date_value, date_tokens_consumed = _parse_sbi_date(tokens, 0)
+            date_value, date_tokens_consumed = parse_multi_token_date(tokens, 0)
             if date_value is None:
                 continue
 
@@ -361,7 +315,7 @@ def _extract_sbi_transactions(
                     and t not in SEPARATOR_TOKENS
                     and t not in {"+", "l", "I", "C", "D", "CR"}
                     and parse_amount_token(t) is None
-                    and _parse_sbi_date([t, "", ""], 0)[0] is None
+                    and parse_multi_token_date([t, "", ""], 0)[0] is None
                 ]
                 narration = clean_space(" ".join([*narration_tokens, *ctx_tokens]))
 

@@ -37,6 +37,7 @@ from cc_parser.parsers.reconciliation import (
     split_paired_adjustments,
 )
 from cc_parser.parsers.tokens import (
+    MONTH_ABBREVS,
     SEPARATOR_TOKENS,
     clean_space,
     format_amount,
@@ -45,24 +46,10 @@ from cc_parser.parsers.tokens import (
     parse_amount,
     parse_amount_token,
     parse_date_token,
+    parse_multi_token_date,
     sum_amounts,
     sum_points,
 )
-
-MONTH_ABBREVS = {
-    "JAN": "01",
-    "FEB": "02",
-    "MAR": "03",
-    "APR": "04",
-    "MAY": "05",
-    "JUN": "06",
-    "JUL": "07",
-    "AUG": "08",
-    "SEP": "09",
-    "OCT": "10",
-    "NOV": "11",
-    "DEC": "12",
-}
 
 # Section headers and noise lines that should not be treated as member names
 IDFC_NON_MEMBER_HEADERS = {
@@ -82,31 +69,6 @@ def _strip_rupee_prefix(token: str) -> str:
     if token.startswith("r") and len(token) > 1 and token[1:2].isdigit():
         return token[1:]
     return token
-
-
-def _parse_idfc_date(tokens: list[str], start: int) -> tuple[str | None, int]:
-    """Try to parse an IDFC-style ``DD Mon YY`` date starting at *start*.
-
-    Returns ``(date_str, tokens_consumed)`` where *date_str* is in
-    ``DD/MM/YYYY`` format, or ``(None, 0)`` on failure.
-    """
-    if start + 2 >= len(tokens):
-        return None, 0
-    day = normalize_token(tokens[start])
-    month_tok = normalize_token(tokens[start + 1])
-    year_tok = normalize_token(tokens[start + 2])
-
-    if not re.fullmatch(r"\d{1,2}", day):
-        return None, 0
-    month = MONTH_ABBREVS.get(month_tok.upper())
-    if month is None:
-        return None, 0
-    if not re.fullmatch(r"\d{2,4}", year_tok):
-        return None, 0
-
-    day_padded = day.zfill(2)
-    year = year_tok if len(year_tok) == 4 else f"20{year_tok}"
-    return f"{day_padded}/{month}/{year}", 3
 
 
 def _extract_idfc_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
@@ -377,7 +339,7 @@ def _extract_idfc_transactions(
 
             # Try to parse date at the start of the line.
             # IDFC Wealth uses DD Mon YY (3 tokens); Mayura uses DD/MM/YYYY (1 token).
-            date_value, date_tokens_consumed = _parse_idfc_date(tokens, 0)
+            date_value, date_tokens_consumed = parse_multi_token_date(tokens, 0)
             if date_value is None:
                 single = parse_date_token(tokens[0])
                 if single:
@@ -459,7 +421,7 @@ def _extract_idfc_transactions(
                     and t not in SEPARATOR_TOKENS
                     and t not in {"+", "l", "I", "CR", "DR"}
                     and parse_amount_token(_strip_rupee_prefix(t)) is None
-                    and _parse_idfc_date([t, "", ""], 0)[0] is None
+                    and parse_multi_token_date([t, "", ""], 0)[0] is None
                 ]
                 narration = clean_space(" ".join([*narration_tokens, *ctx_tokens]))
 
