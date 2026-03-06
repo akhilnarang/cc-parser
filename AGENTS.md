@@ -48,6 +48,9 @@ Primary goals:
 - `cc_parser/parsers/sbi.py`
   - SBI-specific extraction (multi-token dates, bare C/D markers, account summary).
 
+- `cc_parser/parsers/idfc.py`
+  - IDFC FIRST Bank extraction (DD Mon YY dates, DR/CR markers, r-prefixed amounts, statement summary).
+
 ## Parser Contract
 
 All parsers must implement `StatementParser.parse(raw_data)` and return the same compact shape.

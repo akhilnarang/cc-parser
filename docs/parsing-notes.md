@@ -5,7 +5,7 @@ This document explains the statement structures the parser handles and the norma
 ## Scope
 
 - Input: password-protected or plain PDF credit card statements.
-- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `generic`.
+- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `generic`.
 - Output: normalized JSON for transactions, totals, and reconciliation.
 
 ## Common PDF Patterns
@@ -22,7 +22,7 @@ Extraction caveats that parser accounts for:
 - Wrapped rows where date/amount and narration may split across lines.
 - OCR/font artifacts (`(cid:...)`, duplicated characters, broken spacing).
 - Mixed separators (`|`, irregular spaces, merged tokens).
-- Credit markers (for example, `CR` or bare `C`/`D` for SBI) that indicate refunds/payments.
+- Credit markers (for example, `CR` or bare `C`/`D` for SBI, `DR`/`CR` for IDFC) that indicate refunds/payments.
 
 ## Normalized Output Model
 

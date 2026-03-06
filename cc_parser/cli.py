@@ -30,6 +30,7 @@ class BankOption(str, Enum):
     icici = "icici"
     hdfc = "hdfc"
     sbi = "sbi"
+    idfc = "idfc"
     generic = "generic"
 
 

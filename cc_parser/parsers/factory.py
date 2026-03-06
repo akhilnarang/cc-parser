@@ -10,9 +10,10 @@ from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.hdfc import HdfcParser
 from cc_parser.parsers.icici import IciciParser
+from cc_parser.parsers.idfc import IdfcParser
 from cc_parser.parsers.sbi import SbiParser
 
-BankChoice = Literal["auto", "icici", "hdfc", "sbi", "generic"]
+BankChoice = Literal["auto", "icici", "hdfc", "sbi", "idfc", "generic"]
 
 
 def detect_bank(raw_data: dict[str, Any]) -> str:
@@ -22,7 +23,7 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         raw_data: Raw extraction payload.
 
     Returns:
-        One of: `icici`, `hdfc`, or `generic`.
+        One of: `icici`, `hdfc`, `sbi`, `idfc`, or `generic`.
     """
     pages = raw_data.get("pages", [])
     page_texts = []
@@ -39,6 +40,8 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         return "hdfc"
     if "SBI" in joined or "SBI" in file_name:
         return "sbi"
+    if "IDFC" in joined or "IDFC" in file_name:
+        return "idfc"
     return "generic"
 
 
@@ -59,4 +62,6 @@ def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
         return HdfcParser()
     if effective == "sbi":
         return SbiParser()
+    if effective == "idfc":
+        return IdfcParser()
     return GenericParser()
