@@ -32,6 +32,9 @@ class BankOption(str, Enum):
     sbi = "sbi"
     idfc = "idfc"
     indusind = "indusind"
+    hsbc = "hsbc"
+    axis = "axis"
+    jupiter = "jupiter"
     generic = "generic"
 
 
@@ -280,6 +283,8 @@ def print_compact_table(output_data: ParsedStatement) -> None:
     console.print(summary_table)
     console.print(f"Spend Total (debits only): {overall_total}")
     console.print(f"Reward Points (debits only): {overall_reward_points}")
+    if output_data.reward_points_balance:
+        console.print(f"Reward Points Balance: {output_data.reward_points_balance}")
 
     recon_table = Table(title="Reconciliation")
     recon_table.add_column("Metric", style="white")
@@ -410,7 +415,7 @@ def parse_statement(
         export_raw_json: Optional raw extractor JSON export path.
         skip_blocks: Skip PyMuPDF block extraction to reduce payload size.
         verbose: Verbosity count (`-v`, `-vv`, `-vvv`) controlling JSON output.
-        bank: Parser profile (`auto`, `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `generic`).
+        bank: Parser profile (`auto`, `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `generic`).
 
     Returns:
         None. Prints summary tables and optionally writes JSON.

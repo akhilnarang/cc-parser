@@ -5,7 +5,7 @@ This document explains the statement structures the parser handles and the norma
 ## Scope
 
 - Input: password-protected or plain PDF credit card statements.
-- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `generic`.
+- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `generic`.
 - Output: normalized JSON for transactions, totals, and reconciliation.
 
 ## Common PDF Patterns
@@ -22,7 +22,7 @@ Extraction caveats that parser accounts for:
 - Wrapped rows where date/amount and narration may split across lines.
 - OCR/font artifacts (`(cid:...)`, duplicated characters, broken spacing).
 - Mixed separators (`|`, irregular spaces, merged tokens).
-- Credit markers (for example, `CR` or bare `C`/`D` for SBI, `DR`/`CR` for IDFC) that indicate refunds/payments.
+- Credit markers (for example, `CR` or bare `C`/`D` for SBI, `DR`/`CR` for IDFC, `CR` suffix for HSBC, `Cr`/`Dr` for Axis) that indicate refunds/payments.
 
 ## Normalized Output Model
 
@@ -37,7 +37,8 @@ Key top-level fields in compact output:
 - `card_summaries`
 - `person_groups`
 - `overall_total` (debits only)
-- `overall_reward_points` (debits only)
+- `overall_reward_points` (debits only, earned this cycle)
+- `reward_points_balance` (cumulative balance, when available)
 - `reconciliation`
 
 ## Transaction Parsing Strategy

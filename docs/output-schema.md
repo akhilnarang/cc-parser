@@ -5,7 +5,7 @@ This document describes the normalized parser output.
 ## Top-Level Fields
 
 - `file` (`string`): input PDF path.
-- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, or `generic`).
+- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, or `generic`).
 - `name` (`string | null`): primary cardholder name.
 - `card_number` (`string | null`): primary masked card number.
 - `due_date` (`string | null`): detected due date.
@@ -19,7 +19,8 @@ This document describes the normalized parser output.
 - `card_summaries` (`array`): aggregated totals by `person + card_number`.
 - `person_groups` (`array`): grouped debit transactions by person.
 - `overall_total` (`string`): debit total only.
-- `overall_reward_points` (`string`): debit-side reward points total.
+- `overall_reward_points` (`string`): debit-side reward points total (earned this cycle).
+- `reward_points_balance` (`string | null`): cumulative reward points balance (when available, e.g. Axis eDGE, HSBC closing balance).
 - `reconciliation` (`object`): audit metrics and deltas.
 
 ## Transaction Object

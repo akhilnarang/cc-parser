@@ -94,6 +94,7 @@ class ParsedStatement(BaseModel):
     adjustments_debit_total: str
     adjustments_credit_total: str
     overall_reward_points: str
+    reward_points_balance: str | None = None
     transactions: list[Transaction]
     reconciliation: Reconciliation
 

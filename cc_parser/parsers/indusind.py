@@ -320,8 +320,12 @@ def _extract_indusind_transactions(
                     )
                 continue
 
-            # Skip summary "Total" lines and end the transaction section
-            if joined_upper.startswith("TOTAL"):
+            # Skip summary "Total" lines and end the transaction section.
+            # Match "Total" followed by an amount or end-of-line to avoid
+            # false positives on merchants like "Total Energies".
+            if joined_upper == "TOTAL" or re.match(
+                r"TOTAL\s+\d", joined_upper
+            ):
                 in_transaction_section = False
                 continue
 

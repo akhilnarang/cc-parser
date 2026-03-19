@@ -15,3 +15,6 @@ wheels/
 
 # Statements
 *.pdf
+
+# Claude
+.claude/
