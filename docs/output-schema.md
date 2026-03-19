@@ -5,7 +5,7 @@ This document describes the normalized parser output.
 ## Top-Level Fields
 
 - `file` (`string`): input PDF path.
-- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, or `generic`).
+- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, or `generic`).
 - `name` (`string | null`): primary cardholder name.
 - `card_number` (`string | null`): primary masked card number.
 - `due_date` (`string | null`): detected due date.

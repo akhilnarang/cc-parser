@@ -1,6 +1,6 @@
 ## cc-parser
 
-PDF statement extractor for credit card statements (HDFC, ICICI, SBI, and similar).
+PDF statement extractor for credit card statements (HDFC, ICICI, SBI, IDFC, IndusInd, and similar).
 
 This code has entirely been written by `gpt-5.3-codex` and improved by Claude Opus 4.6.
 
@@ -60,6 +60,8 @@ uv run cc-parser /path/to/statement.pdf --bank auto
 uv run cc-parser /path/to/statement.pdf --bank hdfc
 uv run cc-parser /path/to/statement.pdf --bank icici
 uv run cc-parser /path/to/statement.pdf --bank sbi
+uv run cc-parser /path/to/statement.pdf --bank idfc
+uv run cc-parser /path/to/statement.pdf --bank indusind
 ```
 
 Extra debug bundle (best for sharing parser issues):

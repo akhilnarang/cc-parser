@@ -11,9 +11,10 @@ from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.hdfc import HdfcParser
 from cc_parser.parsers.icici import IciciParser
 from cc_parser.parsers.idfc import IdfcParser
+from cc_parser.parsers.indusind import IndusindParser
 from cc_parser.parsers.sbi import SbiParser
 
-BankChoice = Literal["auto", "icici", "hdfc", "sbi", "idfc", "generic"]
+BankChoice = Literal["auto", "icici", "hdfc", "sbi", "idfc", "indusind", "generic"]
 
 
 def detect_bank(raw_data: dict[str, Any]) -> str:
@@ -23,7 +24,7 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         raw_data: Raw extraction payload.
 
     Returns:
-        One of: `icici`, `hdfc`, `sbi`, `idfc`, or `generic`.
+        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, or `generic`.
     """
     pages = raw_data.get("pages", [])
     page_texts = []
@@ -34,6 +35,10 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
     joined = "\n".join(page_texts).upper()
     file_name = str(raw_data.get("file", "")).upper()
 
+    # Check INDUSIND before ICICI because IndusInd statements mention
+    # "ICICI Lombard" (insurance provider) in the fine print.
+    if "INDUSIND" in joined or "INDUSIND" in file_name:
+        return "indusind"
     if "ICICI" in joined or "ICICI" in file_name:
         return "icici"
     if "HDFC" in joined or "HDFC" in file_name:
@@ -64,4 +69,6 @@ def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
         return SbiParser()
     if effective == "idfc":
         return IdfcParser()
+    if effective == "indusind":
+        return IndusindParser()
     return GenericParser()
