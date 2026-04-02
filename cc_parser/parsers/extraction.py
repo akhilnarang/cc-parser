@@ -30,6 +30,51 @@ from cc_parser.parsers.narration import (
     needs_context_merge,
 )
 
+_SUMMARY_KEYWORDS = {
+    "TOTAL",
+    "SUBTOTAL",
+    "CARD TOTAL",
+    "TOTAL DOMESTIC",
+    "TOTAL INTERNATIONAL",
+    "STATEMENT DATE",
+    "OPENING BALANCE",
+    "CLOSING BALANCE",
+    "TOTAL SPENDS",
+    "AMOUNT DUE",
+    "MINIMUM DUE",
+}
+
+
+def _is_summary_row(narration: str) -> bool:
+    """Return True when *narration* looks like a summary/footer row.
+
+    Rejects rows where the narration text (between date and amount):
+    - contains NO alphabetic characters (purely numeric like ``"9"``),
+    - matches common statement summary keywords, or
+    - is a single small integer (the date + count + amount pattern).
+    """
+    stripped = narration.strip()
+    if not stripped:
+        return False
+
+    # Reject narrations with no alphabetic characters at all
+    if not any(ch.isalpha() for ch in stripped):
+        return True
+
+    upper = stripped.upper()
+
+    # Reject known summary keyword patterns
+    for keyword in _SUMMARY_KEYWORDS:
+        if keyword in upper:
+            return True
+
+    # Reject "single small integer" narrations (e.g. "9", "12")
+    # These appear when a page/count number sits between date and amount.
+    if re.fullmatch(r"\d{1,4}", stripped):
+        return True
+
+    return False
+
 
 def group_words_into_lines(
     words: list[dict[str, Any]], y_tolerance: float = 1.8
@@ -308,6 +353,17 @@ def _extract_transactions_with_debug(
                         "page": page_number,
                         "line_index": line_index,
                         "reason": "empty_narration",
+                        "tokens": tokens,
+                    }
+                )
+                continue
+
+            if _is_summary_row(narration):
+                rejected_date_lines.append(
+                    {
+                        "page": page_number,
+                        "line_index": line_index,
+                        "reason": "summary_row",
                         "tokens": tokens,
                     }
                 )

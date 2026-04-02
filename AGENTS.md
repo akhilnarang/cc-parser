@@ -122,3 +122,18 @@ When modifying parser logic:
 - OCR model training,
 - guaranteed perfect reconciliation for every issuer template,
 - storing statement data in this repository.
+
+## Consumer contract
+
+`bank-email-fetcher` uses this library programmatically. These are downstream-breaking if changed:
+
+- **Date format is DD/MM/YYYY**: `bank-email-fetcher` parses with `strptime(date, "%d/%m/%Y")`.
+- **Amount strings are comma-separated**: Expects `"25,000.00"`, strips commas to convert to Decimal.
+- **Detection order matters**: In `factory.py`, IndusInd before ICICI, HSBC/Jupiter before SBI. Wrong order causes misclassification.
+
+## Known limitations
+
+- **No OCR**: Only PDFs with a text layer. Scanned image-only PDFs produce empty/garbled output.
+- **Add-on card naming is heuristic**: Falls back to `ADDON <last 4 digits>` when names can't be extracted.
+- **Summary row rejection**: Recently added filter may undercount in edge cases where a real transaction resembles a summary line.
+- **Auto-detection can misclassify**: If statement text mentions another bank (e.g., payment to HDFC in an ICICI statement), the auto-detector may pick the wrong parser.

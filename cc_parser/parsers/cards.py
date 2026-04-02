@@ -138,6 +138,14 @@ def extract_card_from_line(tokens: list[str]) -> tuple[str | None, str | None]:
     member = " ".join(words_only).strip() if words_only else None
     if member and member.upper() in {"CREDIT CARD", "CREDIT CARD NO", "NO"}:
         member = None
+
+    # Only accept member names that look like real person names:
+    # at least 2 words, each word at least 3 characters.
+    if member:
+        parts = member.split()
+        if len(parts) < 2 or not all(len(p) >= 3 for p in parts):
+            member = None
+
     return card_value, member
 
 

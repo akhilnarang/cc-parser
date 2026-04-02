@@ -30,6 +30,9 @@ INVALID_PERSON_KEYWORDS = {
     "MESSAGES",
 }
 
+# Common merchant/address suffixes that should not appear in person names
+_MERCHANT_SUFFIXES = {"IN", "PVT", "LTD", "INC", "LLC", "CO", "CORP"}
+
 
 def _looks_like_real_name(value: str | None) -> bool:
     """Validate whether a tokenized label resembles a real person name.
@@ -49,6 +52,12 @@ def _looks_like_real_name(value: str | None) -> bool:
         return False
     parts = name.split()
     if not (2 <= len(parts) <= 4):
+        return False
+    # Reject names containing merchant/address suffixes
+    if any(part in _MERCHANT_SUFFIXES for part in parts):
+        return False
+    # Every word must be at least 3 characters (rejects fragments like "IN")
+    if any(len(part) < 3 for part in parts):
         return False
     return all(re.fullmatch(r"[A-Z][A-Z.'-]*", part) for part in parts)
 
