@@ -11,7 +11,6 @@ helpers now live in dedicated sibling modules:
 - ``reconciliation``– summary extraction, reconciliation, grouping
 """
 
-from decimal import Decimal
 from typing import Any
 
 from cc_parser.parsers.base import StatementParser
@@ -24,7 +23,6 @@ from cc_parser.parsers.tokens import (  # noqa: F401
     format_amount,
     normalize_amount,
     normalize_token,
-    parse_amount,
     parse_amount_token,
     parse_date_token,
     parse_points,
@@ -59,6 +57,7 @@ from cc_parser.parsers.extraction import (  # noqa: F401
 from cc_parser.parsers.reconciliation import (  # noqa: F401
     build_card_summaries,
     build_reconciliation,
+    compute_adjustment_totals,
     extract_due_date,
     extract_due_date_from_pages,
     extract_name,
@@ -120,15 +119,9 @@ class GenericParser(StatementParser):
 
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
-
-        adjustments_debit_total = Decimal("0")
-        adjustments_credit_total = Decimal("0")
-        for txn in adjustments:
-            amount = parse_amount(str(txn.amount or "0"))
-            if txn.adjustment_side == "debit":
-                adjustments_debit_total += amount
-            elif txn.adjustment_side == "credit":
-                adjustments_credit_total += amount
+        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
+            adjustments
+        )
 
         due_date = extract_due_date(full_text) or extract_due_date_from_pages(
             raw_data.get("pages", [])
@@ -155,8 +148,8 @@ class GenericParser(StatementParser):
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
             adjustments=adjustments,
-            adjustments_debit_total=format_amount(adjustments_debit_total),
-            adjustments_credit_total=format_amount(adjustments_credit_total),
+            adjustments_debit_total=adjustments_debit_total,
+            adjustments_credit_total=adjustments_credit_total,
             overall_reward_points=str(int(overall_reward_points)),
             transactions=debit_transactions,
             reconciliation=reconciliation,

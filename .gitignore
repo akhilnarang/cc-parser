@@ -18,3 +18,7 @@ wheels/
 
 # Claude
 .claude/
+
+# Codex
+.codex
+.codex/

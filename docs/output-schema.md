@@ -4,8 +4,8 @@ This document describes the normalized parser output.
 
 ## Top-Level Fields
 
-- `file` (`string`): input PDF path.
-- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, or `generic`).
+- `file` (`string`): input PDF file name only (basename, not full local path).
+- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, or `generic`).
 - `name` (`string | null`): primary cardholder name.
 - `card_number` (`string | null`): primary masked card number.
 - `due_date` (`string | null`): detected due date.
@@ -79,6 +79,11 @@ Fields:
 - `-v`: writes compact parsed output.
 - `-vv`: writes `{ parsed, debug }`.
 - `-vvv`: writes `{ parsed, debug, raw }`.
+
+Privacy note:
+
+- `-vvv` and `--export-raw-json` include raw page text, token coordinates, and metadata from the source PDF.
+- Treat exported JSON/CSV as sensitive statement data even though card numbers are masked.
 
 ## CSV Export
 

@@ -19,7 +19,19 @@ from cc_parser.parsers.jupiter import JupiterParser
 from cc_parser.parsers.sbi import SbiParser
 from cc_parser.parsers.slice import SliceParser
 
-BankChoice = Literal["auto", "icici", "hdfc", "sbi", "idfc", "indusind", "hsbc", "axis", "jupiter", "slice", "generic"]
+type BankChoice = Literal[
+    "auto",
+    "icici",
+    "hdfc",
+    "sbi",
+    "idfc",
+    "indusind",
+    "hsbc",
+    "axis",
+    "jupiter",
+    "slice",
+    "generic",
+]
 
 
 def detect_bank(raw_data: dict[str, Any]) -> str:
@@ -81,22 +93,24 @@ def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
         Parser implementation instance for the selected bank.
     """
     effective = detect_bank(raw_data) if choice == "auto" else choice
-    if effective == "icici":
-        return IciciParser()
-    if effective == "hdfc":
-        return HdfcParser()
-    if effective == "sbi":
-        return SbiParser()
-    if effective == "idfc":
-        return IdfcParser()
-    if effective == "indusind":
-        return IndusindParser()
-    if effective == "hsbc":
-        return HsbcParser()
-    if effective == "axis":
-        return AxisParser()
-    if effective == "jupiter":
-        return JupiterParser()
-    if effective == "slice":
-        return SliceParser()
-    return GenericParser()
+    match effective:
+        case "icici":
+            return IciciParser()
+        case "hdfc":
+            return HdfcParser()
+        case "sbi":
+            return SbiParser()
+        case "idfc":
+            return IdfcParser()
+        case "indusind":
+            return IndusindParser()
+        case "hsbc":
+            return HsbcParser()
+        case "axis":
+            return AxisParser()
+        case "jupiter":
+            return JupiterParser()
+        case "slice":
+            return SliceParser()
+        case _:
+            return GenericParser()

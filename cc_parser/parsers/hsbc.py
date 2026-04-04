@@ -32,6 +32,7 @@ from cc_parser.parsers.narration import (
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
+    compute_adjustment_totals,
     group_transactions_by_person,
     split_paired_adjustments,
 )
@@ -870,14 +871,9 @@ class HsbcParser(StatementParser):
         )
         reward_points_balance = closing_points
 
-        adjustments_debit_total = Decimal("0")
-        adjustments_credit_total = Decimal("0")
-        for txn in adjustments:
-            amount = parse_amount(str(txn.amount or "0"))
-            if txn.adjustment_side == "debit":
-                adjustments_debit_total += amount
-            elif txn.adjustment_side == "credit":
-                adjustments_credit_total += amount
+        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
+            adjustments
+        )
 
         due_date = _extract_hsbc_due_date(full_text, pages)
         statement_total_amount_due = _extract_hsbc_total_amount_due(full_text, pages)
@@ -902,8 +898,8 @@ class HsbcParser(StatementParser):
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
             adjustments=adjustments,
-            adjustments_debit_total=format_amount(adjustments_debit_total),
-            adjustments_credit_total=format_amount(adjustments_credit_total),
+            adjustments_debit_total=adjustments_debit_total,
+            adjustments_credit_total=adjustments_credit_total,
             overall_reward_points=str(int(overall_reward_points)),
             reward_points_balance=reward_points_balance,
             transactions=debit_transactions,

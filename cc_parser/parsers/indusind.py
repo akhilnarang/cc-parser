@@ -14,7 +14,6 @@ IndusInd credit card statements differ from other banks in several ways:
 """
 
 import re
-from decimal import Decimal
 from typing import Any
 
 from cc_parser.parsers.base import StatementParser
@@ -37,6 +36,7 @@ from cc_parser.parsers.narration import (
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
+    compute_adjustment_totals,
     group_transactions_by_person,
     split_paired_adjustments,
 )
@@ -46,7 +46,6 @@ from cc_parser.parsers.tokens import (
     format_amount,
     normalize_amount,
     normalize_token,
-    parse_amount,
     parse_amount_token,
     parse_date_token,
     sum_amounts,
@@ -92,7 +91,7 @@ def _extract_indusind_name(
     """Extract cardholder name from IndusInd statement.
 
     IndusInd prints the name with honorific in the member header:
-    ``Purchases & Cash Transactions for MR JOHN DOE (Credit Card No. ...)``
+    ``Purchases & Cash Transactions for MR CARDHOLDER NAME (Credit Card No. ...)``
     """
     match = _MEMBER_HEADER_RE.search(full_text)
     if match:
@@ -684,14 +683,9 @@ class IndusindParser(StatementParser):
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
 
-        adjustments_debit_total = Decimal("0")
-        adjustments_credit_total = Decimal("0")
-        for txn in adjustments:
-            amount = parse_amount(str(txn.amount or "0"))
-            if txn.adjustment_side == "debit":
-                adjustments_debit_total += amount
-            elif txn.adjustment_side == "credit":
-                adjustments_credit_total += amount
+        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
+            adjustments
+        )
 
         due_date = _extract_indusind_due_date(full_text, pages)
         statement_total_amount_due = _extract_indusind_total_amount_due(full_text, pages)
@@ -716,8 +710,8 @@ class IndusindParser(StatementParser):
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
             adjustments=adjustments,
-            adjustments_debit_total=format_amount(adjustments_debit_total),
-            adjustments_credit_total=format_amount(adjustments_credit_total),
+            adjustments_debit_total=adjustments_debit_total,
+            adjustments_credit_total=adjustments_credit_total,
             overall_reward_points=str(int(overall_reward_points)),
             transactions=debit_transactions,
             reconciliation=reconciliation,

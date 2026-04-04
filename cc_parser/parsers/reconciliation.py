@@ -25,6 +25,33 @@ from cc_parser.parsers.tokens import (
 from cc_parser.parsers.extraction import group_words_into_lines
 
 
+def _format_dd_mm_yyyy(value: datetime) -> str:
+    """Format a datetime using the repository's stable date contract."""
+    return value.strftime("%d/%m/%Y")
+
+
+def _normalize_due_date_value(value: str) -> str | None:
+    """Normalize supported due-date formats to ``DD/MM/YYYY``."""
+    cleaned = clean_space(value)
+    for pattern in (
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%B %d, %Y",
+        "%B %d %Y",
+        "%b %d, %Y",
+        "%b %d %Y",
+        "%d %B, %Y",
+        "%d %B %Y",
+        "%d %b, %Y",
+        "%d %b %Y",
+    ):
+        try:
+            return _format_dd_mm_yyyy(datetime.strptime(cleaned, pattern))
+        except ValueError:
+            continue
+    return None
+
+
 def extract_name(full_text: str) -> str | None:
     """Extract cardholder name from statement text."""
     honorifics = {"MR", "MRS", "MS", "MISS", "DR"}
@@ -58,16 +85,16 @@ def extract_due_date(full_text: str) -> str | None:
     """Extract due date from statement body text."""
     compact_text = clean_space(full_text)
     patterns = [
-        r"PAYMENT\s+DUE\s+DATE\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})",
+        r"PAYMENT\s+DUE\s+DATE\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})",
         r"PAYMENT\s+DUE\s+DATE\s*[:\-]?\s*(\d{2}[/-]\d{2}[/-]\d{4})",
-        r"DUE\s+DATE\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})",
+        r"DUE\s+DATE\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})",
         r"DUE\s+DATE\s*[:\-]?\s*(\d{2}[/-]\d{2}[/-]\d{4})",
-        r"DUE\s+DATE.{0,100}?(\d{1,2}\s+[A-Za-z]{3,9},\s+\d{4})",
+        r"DUE\s+DATE.{0,100}?(\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4})",
     ]
     for pattern in patterns:
         match = re.search(pattern, compact_text, flags=re.IGNORECASE)
         if match:
-            return clean_space(match.group(1))
+            return _normalize_due_date_value(match.group(1))
     return None
 
 
@@ -83,10 +110,10 @@ def extract_due_date_from_pages(pages: list[dict[str, Any]]) -> str | None:
             if "DUE" in upper and "DATE" in upper:
                 inline = re.search(r"\d{2}[/-]\d{2}[/-]\d{4}", joined)
                 if inline:
-                    return inline.group(0)
-                month_fmt = re.search(r"\d{1,2}\s+[A-Za-z]{3,9},\s+\d{4}", joined)
+                    return _normalize_due_date_value(inline.group(0))
+                month_fmt = re.search(r"\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4}", joined)
                 if month_fmt:
-                    return month_fmt.group(0)
+                    return _normalize_due_date_value(month_fmt.group(0))
 
                 if line_index + 1 < len(lines):
                     next_tokens = [
@@ -96,13 +123,13 @@ def extract_due_date_from_pages(pages: list[dict[str, Any]]) -> str | None:
                     next_joined = clean_space(" ".join(next_tokens))
                     next_inline = re.search(r"\d{2}[/-]\d{2}[/-]\d{4}", next_joined)
                     if next_inline:
-                        return next_inline.group(0)
+                        return _normalize_due_date_value(next_inline.group(0))
                     next_month_fmt = re.search(
-                        r"\d{1,2}\s+[A-Za-z]{3,9},\s+\d{4}",
+                        r"\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4}",
                         next_joined,
                     )
                     if next_month_fmt:
-                        return next_month_fmt.group(0)
+                        return _normalize_due_date_value(next_month_fmt.group(0))
     return None
 
 
@@ -345,6 +372,21 @@ def split_paired_adjustments(
     return kept_debits, kept_credits, adjustments
 
 
+def compute_adjustment_totals(adjustments: list[Transaction]) -> tuple[str, str]:
+    """Return formatted debit/credit totals for the adjustment bucket."""
+    debit_total = Decimal("0")
+    credit_total = Decimal("0")
+
+    for txn in adjustments:
+        amount = parse_amount(str(txn.amount or "0"))
+        if txn.adjustment_side == "debit":
+            debit_total += amount
+        elif txn.adjustment_side == "credit":
+            credit_total += amount
+
+    return format_amount(debit_total), format_amount(credit_total)
+
+
 def group_transactions_by_person(
     transactions: list[Transaction], fallback_name: str | None
 ) -> list[PersonGroup]:
@@ -423,6 +465,7 @@ __all__ = [
     "extract_statement_summary",
     "build_reconciliation",
     "split_paired_adjustments",
+    "compute_adjustment_totals",
     "group_transactions_by_person",
     "build_card_summaries",
 ]

@@ -5,8 +5,13 @@ This document explains the statement structures the parser handles and the norma
 ## Scope
 
 - Input: password-protected or plain PDF credit card statements.
-- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `generic`.
+- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `generic`.
 - Output: normalized JSON for transactions, totals, and reconciliation.
+
+Privacy handling:
+
+- Parsed output keeps only the input file basename, not the full local path.
+- Raw/debug exports still contain statement-derived content and should be treated as sensitive.
 
 ## Common PDF Patterns
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Transaction(BaseModel):
@@ -26,7 +26,7 @@ class Transaction(BaseModel):
 class StatementSummary(BaseModel):
     """Account summary fields extracted from the statement header area."""
 
-    summary_amount_candidates: list[str] = []
+    summary_amount_candidates: list[str] = Field(default_factory=list)
     payments_credits_received: str | None = None
     previous_statement_dues: str | None = None
     purchases_debit: str | None = None
@@ -53,7 +53,7 @@ class Reconciliation(BaseModel):
     delta_statement_vs_parsed_debit: str
     delta_statement_vs_parsed_net: str
     delta_statement_vs_header_estimate: str
-    summary_amount_candidates: list[str] = []
+    summary_amount_candidates: list[str] = Field(default_factory=list)
 
 
 class PersonGroup(BaseModel):

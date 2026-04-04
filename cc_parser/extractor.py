@@ -138,7 +138,7 @@ def extract_raw_pdf(
     )
 
     document: dict[str, Any] = {
-        "file": str(pdf_path),
+        "file": pdf_path.name,
         "source": "pdfplumber+pymupdf+pypdf",
         "metadata": {"pypdf": pypdf_metadata},
         "encryption": encryption_info,

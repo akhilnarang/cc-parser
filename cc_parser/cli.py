@@ -8,12 +8,12 @@ Workflow:
 """
 
 import getpass
-import json
 import csv
-from pathlib import Path
-from enum import Enum
-from typing import Any, Optional
+import json
 import uuid
+from enum import StrEnum
+from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 from rich.table import Table
@@ -25,7 +25,7 @@ from cc_parser.parsers.models import ParsedStatement, Transaction
 from cc_parser.parsers.tokens import parse_amount
 
 
-class BankOption(str, Enum):
+class BankOption(StrEnum):
     auto = "auto"
     icici = "icici"
     hdfc = "hdfc"
@@ -35,6 +35,7 @@ class BankOption(str, Enum):
     hsbc = "hsbc"
     axis = "axis"
     jupiter = "jupiter"
+    slice = "slice"
     generic = "generic"
 
 
@@ -367,23 +368,23 @@ def extract_with_password_prompt(
 
 def parse_statement(
     pdf: Path = typer.Argument(..., help="Path to the PDF file"),
-    output: Optional[Path] = typer.Option(
+    output: Path | None = typer.Option(
         None,
         "--output",
         "-o",
         help="Output JSON path when using -v/-vv/-vvv",
     ),
-    export_csv: Optional[Path] = typer.Option(
+    export_csv: Path | None = typer.Option(
         None,
         "--export-csv",
         help="Write flattened transaction CSV for spreadsheet analysis",
     ),
-    export_json: Optional[Path] = typer.Option(
+    export_json: Path | None = typer.Option(
         None,
         "--export-json",
         help="Write parsed JSON (same shape as -v)",
     ),
-    export_raw_json: Optional[Path] = typer.Option(
+    export_raw_json: Path | None = typer.Option(
         None,
         "--export-raw-json",
         help="Write raw extractor JSON (pages/words/tables/metadata)",
@@ -415,7 +416,7 @@ def parse_statement(
         export_raw_json: Optional raw extractor JSON export path.
         skip_blocks: Skip PyMuPDF block extraction to reduce payload size.
         verbose: Verbosity count (`-v`, `-vv`, `-vvv`) controlling JSON output.
-        bank: Parser profile (`auto`, `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `generic`).
+        bank: Parser profile (`auto`, `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `generic`).
 
     Returns:
         None. Prints summary tables and optionally writes JSON.

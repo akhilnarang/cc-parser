@@ -8,6 +8,7 @@ Requires Python 3.14.
 
 Default output extracts:
 - name
+- input file name
 - masked card number
 - due date
 - statement total amount due
@@ -26,6 +27,12 @@ Use verbosity flags to write JSON:
 - `-vvv`: `{ parsed, debug, raw }`
 
 If `-o/--output` is not provided, JSON is written as `$PWD/run_<uuid7hex>.json`.
+
+Privacy note:
+- `-v`, `-vv`, `-vvv`, `--export-json`, `--export-raw-json`, and `--export-csv` write statement-derived data to disk.
+- `-vvv` and `--export-raw-json` include page text, word coordinates, metadata, and other high-sensitivity content.
+- Generated exports, PDFs, and agent scratch files are gitignored in this repo; do not override that by force-adding them.
+- Share only redacted outputs outside your local machine.
 
 ## Usage
 
@@ -65,9 +72,10 @@ uv run cc-parser /path/to/statement.pdf --bank indusind
 uv run cc-parser /path/to/statement.pdf --bank hsbc
 uv run cc-parser /path/to/statement.pdf --bank axis
 uv run cc-parser /path/to/statement.pdf --bank jupiter
+uv run cc-parser /path/to/statement.pdf --bank slice
 ```
 
-Extra debug bundle (best for sharing parser issues):
+Extra debug bundle (local troubleshooting only; redact before sharing):
 
 ```bash
 uv run cc-parser /path/to/statement.pdf -vvv
