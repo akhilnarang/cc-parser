@@ -20,7 +20,8 @@ from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
     find_card_candidates,
-    is_invalid_person_label,
+    normalize_transaction_persons,
+    split_by_transaction_type,
 )
 from cc_parser.parsers.extraction import group_words_into_lines
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
@@ -305,7 +306,7 @@ def _extract_sbi_transactions(
             narration = clean_space(" ".join(narration_tokens))
 
             # Merge context from wrapped lines if narration is incomplete
-            if needs_context_merge(narration, narration_tokens):
+            if needs_context_merge(narration):
                 prev_ctx, next_ctx = collect_row_context_tokens(lines, line_index)
                 ctx_tokens = [
                     t
@@ -506,17 +507,11 @@ class SbiParser(StatementParser):
                     txn.card_number = card_number
 
         # Fix invalid person labels
-        for txn in transactions:
-            person_value = (txn.person or "").strip()
-            if is_invalid_person_label(person_value):
-                txn.person = name
+        normalize_transaction_persons(transactions, name)
 
-        debit_transactions = [
-            txn for txn in transactions if txn.transaction_type != "credit"
-        ]
-        credit_transactions = [
-            txn for txn in transactions if txn.transaction_type == "credit"
-        ]
+        debit_transactions, credit_transactions = split_by_transaction_type(
+            transactions
+        )
 
         debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
             debit_transactions, credit_transactions

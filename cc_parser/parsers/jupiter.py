@@ -16,13 +16,15 @@ Jupiter credit card statements differ from other banks in several ways:
 """
 
 import re
+from decimal import Decimal
 from typing import Any
 
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
     find_card_candidates,
-    is_invalid_person_label,
+    normalize_transaction_persons,
+    split_by_transaction_type,
 )
 from cc_parser.parsers.extraction import group_words_into_lines
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
@@ -612,17 +614,11 @@ class JupiterParser(StatementParser):
                     txn.person = name
 
         # Fix invalid person labels
-        for txn in transactions:
-            person_value = (txn.person or "").strip()
-            if is_invalid_person_label(person_value):
-                txn.person = name
+        normalize_transaction_persons(transactions, name)
 
-        debit_transactions = [
-            txn for txn in transactions if txn.transaction_type != "credit"
-        ]
-        credit_transactions = [
-            txn for txn in transactions if txn.transaction_type == "credit"
-        ]
+        debit_transactions, credit_transactions = split_by_transaction_type(
+            transactions
+        )
 
         debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
             debit_transactions, credit_transactions

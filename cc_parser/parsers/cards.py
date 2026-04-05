@@ -1,6 +1,12 @@
-"""Card number detection and masking utilities."""
+"""Card number detection, masking, and person-label utilities."""
+
+from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from cc_parser.parsers.models import Transaction
 
 from cc_parser.parsers.tokens import (
     HONORIFIC_RE,
@@ -214,6 +220,37 @@ def is_invalid_person_label(value: str | None) -> bool:
     return False
 
 
+def normalize_transaction_persons(
+    transactions: list[Transaction], fallback_name: str
+) -> None:
+    """Replace invalid person labels on transactions with a fallback name.
+
+    Args:
+        transactions: List of transactions to normalize in-place.
+        fallback_name: Name to use when person label is invalid.
+    """
+    for txn in transactions:
+        person_value = (txn.person or "").strip()
+        if is_invalid_person_label(person_value):
+            txn.person = fallback_name
+
+
+def split_by_transaction_type(
+    transactions: list[Transaction],
+) -> tuple[list[Transaction], list[Transaction]]:
+    """Split transactions into debits and credits.
+
+    Args:
+        transactions: List of all transactions.
+
+    Returns:
+        Tuple of (debit_transactions, credit_transactions).
+    """
+    debits = [t for t in transactions if t.transaction_type != "credit"]
+    credits = [t for t in transactions if t.transaction_type == "credit"]
+    return debits, credits
+
+
 def extract_card_number(full_text: str) -> str | None:
     """Extract first masked card number from statement text."""
     candidates = find_card_candidates(full_text)
@@ -240,6 +277,8 @@ __all__ = [
     "extract_card_from_line",
     "looks_like_member_header",
     "is_invalid_person_label",
+    "normalize_transaction_persons",
+    "split_by_transaction_type",
     "extract_card_number",
     "extract_card_from_filename",
 ]

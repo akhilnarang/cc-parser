@@ -205,7 +205,7 @@ def _build_narration(
 
     narration = clean_space(" ".join(narration_tokens))
 
-    if needs_context_merge(narration, narration_tokens):
+    if needs_context_merge(narration):
         prev_ctx_tokens, next_ctx_tokens = collect_row_context_tokens(lines, line_index)
         context_narration_tokens = [
             token

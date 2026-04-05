@@ -40,6 +40,8 @@ from cc_parser.parsers.cards import (  # noqa: F401
     looks_like_member_header,
     mask_card_token,
     normalize_card_token,
+    normalize_transaction_persons,
+    split_by_transaction_type,
 )
 from cc_parser.parsers.narration import (  # noqa: F401
     clean_narration_artifacts,
@@ -97,17 +99,11 @@ class GenericParser(StatementParser):
                 if not txn.card_number:
                     txn.card_number = detected_card
 
-        for txn in transactions:
-            person_value = (txn.person or "").strip()
-            if is_invalid_person_label(person_value):
-                txn.person = name
+        normalize_transaction_persons(transactions, name)
 
-        debit_transactions = [
-            txn for txn in transactions if txn.transaction_type != "credit"
-        ]
-        credit_transactions = [
-            txn for txn in transactions if txn.transaction_type == "credit"
-        ]
+        debit_transactions, credit_transactions = split_by_transaction_type(
+            transactions
+        )
 
         debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
             debit_transactions,

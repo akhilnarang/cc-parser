@@ -97,7 +97,7 @@ def clean_narration_artifacts(narration: str) -> str:
     return cleaned
 
 
-def needs_context_merge(narration: str, narration_tokens: list[str]) -> bool:
+def needs_context_merge(narration: str) -> bool:
     """Decide whether wrapped context lines should be merged into narration."""
     if not narration:
         return True
@@ -107,7 +107,6 @@ def needs_context_merge(narration: str, narration_tokens: list[str]) -> bool:
         return True
     if "(Ref#" in narration and ")" not in narration:
         return True
-    del narration_tokens
     return False
 
 
