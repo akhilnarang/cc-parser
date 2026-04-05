@@ -110,16 +110,20 @@ class StatementStore {
     return "unknown";
   }
 
-  /** Extract last 4 digits of card number.
+  /** Extract the visible card suffix from a masked card number.
+   *  Falls back to the last 2 digits when a statement only exposes a
+   *  2-digit suffix in the mask.
    *  @param {string|null|undefined} cardNumber
    *  @returns {string} */
   static lastFour(cardNumber) {
     if (!cardNumber) return "unknown";
     const digits = cardNumber.replace(/\D/g, "");
-    return digits.length >= 4 ? digits.slice(-4) : "unknown";
+    if (digits.length >= 4) return digits.slice(-4);
+    if (digits.length >= 2) return digits.slice(-2);
+    return "unknown";
   }
 
-  /** Build semantic_key: "bank|last4|due_date_iso".
+  /** Build semantic_key: "bank|card_suffix|due_date_iso".
    *  @param {object} data - parsed statement data
    *  @returns {string} */
   static buildSemanticKey(data) {
@@ -211,7 +215,7 @@ class StatementStore {
     return Array.from(map.values()).sort((a, b) => a.month.localeCompare(b.month));
   }
 
-  /** Group by (name, card_last_four), sum totals.
+  /** Group by (name, card suffix), sum totals.
    *  @param {object[]} [stmts] - pre-fetched records (avoids extra IDB read)
    *  @returns {Promise<Array<{name: string, card: string, txns: number, total: number}>>} */
   async aggregateByPersonCard(stmts) {
