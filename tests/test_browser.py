@@ -26,7 +26,8 @@ def test_list_banks_returns_all_options():
     assert "auto" in banks
     assert "icici" in banks
     assert "generic" in banks
-    assert len(banks) == 11
+    assert "bob" in banks
+    assert len(banks) == 12
 
 
 # ---------------------------------------------------------------------------

@@ -36,6 +36,7 @@ class BankOption(StrEnum):
     axis = "axis"
     jupiter = "jupiter"
     slice = "slice"
+    bob = "bob"
     generic = "generic"
 
 
@@ -416,7 +417,7 @@ def parse_statement(
         export_raw_json: Optional raw extractor JSON export path.
         skip_blocks: Skip PyMuPDF block extraction to reduce payload size.
         verbose: Verbosity count (`-v`, `-vv`, `-vvv`) controlling JSON output.
-        bank: Parser profile (`auto`, `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `generic`).
+        bank: Parser profile (`auto`, `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `bob`, `generic`).
 
     Returns:
         None. Prints summary tables and optionally writes JSON.

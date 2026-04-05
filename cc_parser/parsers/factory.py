@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from cc_parser.parsers.axis import AxisParser
 from cc_parser.parsers.base import StatementParser
+from cc_parser.parsers.bob import BobParser
 from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.hdfc import HdfcParser
 from cc_parser.parsers.hsbc import HsbcParser
@@ -30,6 +31,7 @@ type BankChoice = Literal[
     "axis",
     "jupiter",
     "slice",
+    "bob",
     "generic",
 ]
 
@@ -41,7 +43,7 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         raw_data: Raw extraction payload.
 
     Returns:
-        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, or `generic`.
+        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `bob`, or `generic`.
     """
     pages = raw_data.get("pages", [])
     page_texts = []
@@ -79,6 +81,8 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         return "idfc"
     if "SLICE" in joined or "SLICE" in file_name:
         return "slice"
+    if "BOBCARD" in joined or "BOBCARD" in file_name:
+        return "bob"
     return "generic"
 
 
@@ -112,5 +116,7 @@ def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
             return JupiterParser()
         case "slice":
             return SliceParser()
+        case "bob":
+            return BobParser()
         case _:
             return GenericParser()
