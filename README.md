@@ -1,10 +1,16 @@
 ## cc-parser
 
-PDF statement extractor for credit card statements (HDFC, ICICI, SBI, IDFC, IndusInd, HSBC, Axis, Jupiter/CSB, and similar).
+I wanted to build this for a while because I had been manually copy pasting credit card statements into Google Sheet for some calculations and that was tedious (first had to copy into a text editor, add some separators, then into a sheet, etc). Delayed it for ages because I didn't want to write PDF parsing code, but Codex and Claude handled for me this time.
 
-This code has entirely been written by `gpt-5.3-codex` and improved by Claude Opus 4.6.
+It can handle most bank's card statements, if anything doesn't seem to work, please raise an issue.
 
-Requires Python 3.14.
+There's also a [web version](https://cc-statement-parser.akhilnarang.dev) that runs entirely in your browser using Pyodide (Python compiled to WebAssembly). No server is involved — your statements never leave your machine. Features:
+- Upload PDFs via drag-and-drop or file picker
+- Auto-detects bank and handles encrypted PDFs (password cached per session)
+- Stores parsed statements in browser storage (IndexedDB) for multi-statement analysis
+- Dashboard with spend-by-month charts, spend-by-person/card breakdowns, and reward points tracking
+- Export individual or all stored statements as JSON/CSV
+- Works on mobile and desktop, with dark/light mode support
 
 Default output extracts:
 - name
@@ -21,7 +27,7 @@ Default output extracts:
 
 Regular run prints tables to terminal and does not write JSON.
 
-Use verbosity flags to write JSON:
+Use verbosity flags to write JSON - the use case is basically for adding support for new cards.
 - `-v`: parsed compact output
 - `-vv`: `{ parsed, debug }`
 - `-vvv`: `{ parsed, debug, raw }`
@@ -60,20 +66,13 @@ Direct JSON exports (without using `-v`):
 uv run cc-parser /path/to/statement.pdf --export-json parsed.json --export-raw-json raw.json
 ```
 
-Parser selection (optional):
+Parser selection (default: `auto`):
 
 ```bash
-uv run cc-parser /path/to/statement.pdf --bank auto
 uv run cc-parser /path/to/statement.pdf --bank hdfc
-uv run cc-parser /path/to/statement.pdf --bank icici
-uv run cc-parser /path/to/statement.pdf --bank sbi
-uv run cc-parser /path/to/statement.pdf --bank idfc
-uv run cc-parser /path/to/statement.pdf --bank indusind
-uv run cc-parser /path/to/statement.pdf --bank hsbc
-uv run cc-parser /path/to/statement.pdf --bank axis
-uv run cc-parser /path/to/statement.pdf --bank jupiter
-uv run cc-parser /path/to/statement.pdf --bank slice
 ```
+
+Supported banks: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `bob`, `generic`.
 
 Extra debug bundle (local troubleshooting only; redact before sharing):
 
