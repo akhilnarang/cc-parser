@@ -13,6 +13,7 @@ import sys, json
 print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))
 ") > "$ROOT/cc_parser_manifest.json"
   echo "Generated cc_parser_manifest.json for local dev"
+  echo "Serve with: python -m http.server 3000   (then open localhost:3000/web/)"
   exit 0
 fi
 
@@ -22,8 +23,10 @@ mkdir -p "$DIST/cc_parser/parsers"
 # Copy web assets
 cp "$ROOT/web/index.html" "$ROOT/web/app.js" "$ROOT/web/storage.js" "$DIST/"
 
-# Copy worker.js with adjusted fetch path (../cc_parser → ./cc_parser)
-sed 's|\.\./cc_parser|./cc_parser|g' "$ROOT/web/worker.js" > "$DIST/worker.js"
+# Copy worker.js with adjusted fetch path and production Pyodide URL
+sed -e 's|\.\./cc_parser|./cc_parser|g' \
+    -e 's|https://cdn.jsdelivr.net/pyodide/v0.29.3/full|https://files.akhilnarang.dev/cdn/pyodide/v0.29.3|g' \
+    "$ROOT/web/worker.js" > "$DIST/worker.js"
 
 # Copy only the Python files the browser path needs (no cli.py, no extractor.py)
 cp "$ROOT/cc_parser/__init__.py" "$ROOT/cc_parser/browser.py" "$DIST/cc_parser/"

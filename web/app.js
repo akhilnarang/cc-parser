@@ -28,8 +28,27 @@ const libraryCountEl = document.getElementById("library-count");
 let pendingFile = null; // { buffer: ArrayBuffer, name: string }
 let workerReady = false;
 let lastResult = null;
+let lastParsedResult = null; // in-memory from most recent parse
 let storageAvailable = false;
-let currentTab = "current";
+let currentTab = "library";
+let currentStatementId = null;
+
+// ── Hash routing ────────────────────────────────────────────
+const TAB_ROUTES = { library: "/", statement: "/statement", dashboard: "/dashboard", settings: "/settings" };
+const ROUTE_TABS = { "/": "library", "/statement": "statement", "/dashboard": "dashboard", "/settings": "settings" };
+
+function getRouteFromHash() {
+  const hash = (location.hash || "#/").slice(1).replace(/\/+$/, "") || "/";
+  const match = hash.match(/^\/statement\/([^/]+)$/);
+  if (match) return { tab: "statement", statementId: match[1] };
+  return { tab: ROUTE_TABS[hash] || "library", statementId: null };
+}
+
+function setHash(tab, statementId = null) {
+  let path = TAB_ROUTES[tab] || "/";
+  if (tab === "statement" && statementId) path += `/${statementId}`;
+  if (location.hash !== "#" + path) location.hash = "#" + path;
+}
 
 // ── Storage instances ───────────────────────────────────────
 const passwordCache = new PasswordCache();
@@ -73,9 +92,23 @@ worker.onmessage = function (e) {
   }
   if (!storageAvailable) {
     showError("⚠️ Storage unavailable (private browsing?). Statement history and password caching disabled.");
+    // Disable dashboard (library has its own unavailable state)
+    const dashBtn = tabBar.querySelector(".tab-btn[data-tab='dashboard']");
+    if (dashBtn) dashBtn.classList.add("disabled");
   } else {
     await refreshLibraryCount();
   }
+  updateTabStates();
+
+  // Route to the tab specified by the URL hash, with guards
+  let route = getRouteFromHash();
+  if (route.tab === "statement" && !route.statementId && !lastParsedResult) {
+    route = { tab: "library", statementId: null };
+  }
+  if (route.tab === "dashboard" && !storageAvailable) {
+    route = { tab: "library", statementId: null };
+  }
+  showTab(route.tab, false, route.statementId);
 })();
 
 async function refreshLibraryCount() {
@@ -83,9 +116,16 @@ async function refreshLibraryCount() {
   const stmts = await statementStore.all();
   const count = stmts.length;
   libraryCountEl.textContent = String(count);
-  if (count > 0) {
-    tabBar.classList.add("visible");
-  }
+  // Library always accessible (has its own empty state); dashboard needs data
+  const hasData = count > 0;
+  const dashBtn = tabBar.querySelector(".tab-btn[data-tab='dashboard']");
+  if (dashBtn) dashBtn.classList.toggle("disabled", !hasData);
+}
+
+function updateTabStates() {
+  // Disable "statement" tab unless there's a parsed result or a stored statement loaded
+  const statementBtn = tabBar.querySelector(".tab-btn[data-tab='statement']");
+  if (statementBtn) statementBtn.classList.toggle("disabled", !lastParsedResult && !lastResult);
 }
 
 // ── parseOnce: Promise wrapper for one worker round-trip ────
@@ -280,9 +320,10 @@ async function triggerParse() {
   }
 
   if (result.type === "result") {
+    lastParsedResult = result.data;
     lastResult = result.data;
-    showTab("current");
-    renderResults(result.data);
+    updateTabStates();
+    showTab("statement");
 
     // Cache password on success (if manually entered)
     if (manualPassword) {
@@ -297,6 +338,7 @@ async function triggerParse() {
       try {
         const record = await statementStore.put(result.data, buffer);
         await refreshLibraryCount();
+        if (currentTab === "library") renderLibrary();
         const bankLabel = (record.bank || "").toUpperCase();
         const cardLabel = record.card_last_four !== "unknown" ? ` ...${record.card_last_four}` : "";
         const dueLabel = record.due_date !== "unknown" ? `, due ${formatDate(record.due_date)}` : "";
@@ -319,6 +361,7 @@ async function triggerParse() {
         if (err.name === "QuotaExceededError") {
           showToast("Storage full. Delete old statements in Settings.");
         } else {
+          showToast(`⚠️ Auto-store failed: ${err.message}`);
           console.warn("Auto-store failed:", err);
         }
       }
@@ -333,16 +376,33 @@ async function triggerParse() {
   parseBtn.disabled = false;
 }
 
-// ── Tab system ──────────────────────────────────────────────
+// ── Tab system + hash routing ──────────────────────────────
 tabBar.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab-btn");
-  if (!btn) return;
-  const tab = btn.dataset.tab;
-  showTab(tab);
+  if (!btn || btn.classList.contains("disabled")) return;
+  showTab(btn.dataset.tab);
 });
 
-function showTab(tab) {
+window.addEventListener("hashchange", () => {
+  let route = getRouteFromHash();
+  if (route.tab === "statement" && !route.statementId && !lastParsedResult) {
+    route = { tab: "library", statementId: null };
+  }
+  if (route.tab === "dashboard" && !storageAvailable) {
+    route = { tab: "library", statementId: null };
+  }
+  if (route.tab !== currentTab || route.statementId !== currentStatementId) {
+    showTab(route.tab, true, route.statementId);
+  }
+});
+
+let navCounter = 0; // guard against stale async completions
+
+async function showTab(tab, skipHash = false, statementId = null) {
+  const thisNav = ++navCounter;
   currentTab = tab;
+  currentStatementId = tab === "statement" ? statementId : null;
+  if (!skipHash) setHash(tab, statementId);
   // Update tab buttons
   for (const btn of tabBar.querySelectorAll(".tab-btn")) {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -352,9 +412,36 @@ function showTab(tab) {
     pane.classList.toggle("active", pane.dataset.pane === tab);
   }
   // Render tab content
-  if (tab === "library") renderLibrary();
-  else if (tab === "dashboard") renderDashboard();
-  else if (tab === "settings") renderSettings();
+  if (tab === "library") { renderLibrary(); return; }
+  if (tab === "dashboard") { renderDashboard(); return; }
+  if (tab === "settings") { renderSettings(); return; }
+  if (tab === "statement") {
+    if (statementId) {
+      if (!storageAvailable) {
+        showError("Storage unavailable. Cannot open saved statement.");
+        location.replace("#/");
+        return;
+      }
+      const record = await statementStore.get(statementId);
+      if (thisNav !== navCounter) return; // stale navigation
+      if (!record) {
+        showError("Statement not found.");
+        location.replace("#/");
+        return;
+      }
+      lastResult = record.data;
+      updateTabStates();
+      renderResults(record.data);
+      return;
+    }
+    if (lastParsedResult) {
+      lastResult = lastParsedResult;
+      renderResults(lastParsedResult);
+      return;
+    }
+    // No data — replace hash to avoid back-button loop
+    location.replace("#/");
+  }
 }
 
 // ── Toast system ────────────────────────────────────────────
@@ -415,24 +502,49 @@ async function renderLibrary() {
     return;
   }
 
-  // Sort by due_date descending
-  stmts.sort((a, b) => (b.due_date || "").localeCompare(a.due_date || ""));
+  // Sort by due_date descending, unknowns last
+  const sortKey = (s) => s.due_date && s.due_date !== "unknown" ? s.due_date : "0000-00-00";
+  stmts.sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
 
-  let html = "";
-  html += tableSection(
-    "Stored Statements",
-    stmts.length,
-    ["Bank", "Card", "Due Date", "Name", "Spend Total", "Stored", "Actions"],
-    stmts.map((s) => [
-      { v: (s.bank || "").toUpperCase() },
-      { v: s.card_last_four !== "unknown" ? `...${s.card_last_four}` : "-", c: "col-date" },
-      { v: s.due_date !== "unknown" ? formatDate(s.due_date) : "-", c: "col-date" },
-      { v: s.name || "-" },
-      { v: s.overall_total || "0.00", c: "col-amount" },
-      { v: s.stored_at ? new Date(s.stored_at).toLocaleDateString() : "-", c: "col-date" },
-      { v: `__ACTIONS_${s.id}__` },
-    ]),
-  );
+  // Group by month
+  const groups = new Map();
+  for (const s of stmts) {
+    const month = s.due_date && s.due_date !== "unknown" ? s.due_date.slice(0, 7) : "unknown";
+    if (!groups.has(month)) groups.set(month, []);
+    groups.get(month).push(s);
+  }
+
+  let html = `<div class="results-header fade-settle"><h2 class="results-title">Library</h2>`;
+  html += `<span class="table-title"><span class="badge">${stmts.length} statement${stmts.length !== 1 ? "s" : ""}</span></span>`;
+  html += `</div>`;
+
+  for (const [month, items] of groups) {
+    const monthLabel = month !== "unknown" ? formatMonth(month) : "Unknown Date";
+    html += `<div class="lib-month-group fade-settle-1">`;
+    html += `<h3 class="lib-month-heading">${esc(monthLabel)}</h3>`;
+    html += `<div class="lib-cards">`;
+    for (const s of items) {
+      const bank = (s.bank || "").toUpperCase();
+      const card = s.card_last_four !== "unknown" ? `...${s.card_last_four}` : "";
+      const dueDate = s.due_date !== "unknown" ? formatDate(s.due_date) : "-";
+      html += `<div class="lib-card">`;
+      html += `<div class="lib-card-main">`;
+      html += `<div class="lib-card-bank">${esc(bank)}</div>`;
+      html += `<div class="lib-card-amount">${esc(s.overall_total || "0.00")}</div>`;
+      html += `</div>`;
+      html += `<div class="lib-card-meta">`;
+      if (card) html += `<span>${esc(card)}</span>`;
+      html += `<span>${esc(dueDate)}</span>`;
+      if (s.name) html += `<span>${esc(s.name)}</span>`;
+      html += `</div>`;
+      html += `<div class="lib-card-actions">`;
+      html += `<button class="btn btn-secondary btn-sm lib-view" data-id="${s.id}">View</button>`;
+      html += `<button class="btn btn-danger btn-sm lib-delete" data-id="${s.id}">Delete</button>`;
+      html += `</div>`;
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  }
 
   // Footer buttons
   html += `<div class="export-bar">`;
@@ -443,28 +555,10 @@ async function renderLibrary() {
 
   libraryContent.innerHTML = html;
 
-  // Replace action placeholders with real buttons
-  for (const s of stmts) {
-    const placeholder = `__ACTIONS_${s.id}__`;
-    // Find the td containing the placeholder
-    for (const cell of libraryContent.querySelectorAll("td")) {
-      if (cell.textContent === placeholder) {
-        cell.innerHTML = `<button class="btn btn-secondary btn-sm lib-view" data-id="${s.id}">View</button>
-          <button class="btn btn-danger btn-sm lib-delete" data-id="${s.id}">Delete</button>`;
-        break;
-      }
-    }
-  }
-
   // Wire up view/delete
   for (const btn of libraryContent.querySelectorAll(".lib-view")) {
-    btn.addEventListener("click", async () => {
-      const record = await statementStore.get(btn.dataset.id);
-      if (record) {
-        lastResult = record.data;
-        showTab("current");
-        renderResults(record.data);
-      }
+    btn.addEventListener("click", () => {
+      showTab("statement", false, btn.dataset.id);
     });
   }
 
@@ -599,11 +693,15 @@ async function renderDashboard() {
 
   let html = "";
 
-  // Summary cards
-  html += `<div class="results-header">`;
+  // Dashboard header
+  html += `<div class="results-header fade-settle">`;
   html += `<h2 class="results-title">Dashboard</h2>`;
-  html += `<div class="summary-grid">`;
-  html += summaryCard("Total Spend", formatAmount(totalSpend));
+  html += `</div>`;
+
+  html += `<div class="content-grid">`;
+  html += `<div>`;
+  html += `<div class="summary-grid summary-grid--sidebar">`;
+  html += summaryCard("Total Spend", formatAmount(totalSpend), "hero");
   html += summaryCard("Statements", String(stmts.length));
   html += summaryCard("Cards", String(cards.size));
   html += summaryCard("Date Range", dateRange);
@@ -612,19 +710,38 @@ async function renderDashboard() {
     html += summaryCard("Latest Points Balance", formatNumber(latestPoints));
   }
   html += `</div></div>`;
+  html += `<div>`;
 
-  // Spend by Month (bar chart)
+  // Spend by Month (vertical bar chart, fallback to horizontal for >12)
   if (byMonth.length > 0) {
     const maxMonth = Math.max(...byMonth.map((m) => m.total));
     html += `<div class="dash-section"><h3>Spend by Month</h3>`;
-    for (const m of byMonth) {
-      const pct = maxMonth > 0 ? (m.total / maxMonth) * 100 : 0;
-      const label = m.month !== "unknown" ? formatMonth(m.month) : "Unknown";
-      html += `<div class="bar-row">`;
-      html += `<div class="bar-label">${esc(label)}</div>`;
-      html += `<div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div>`;
-      html += `<div class="bar-value">${esc(formatAmount(m.total))}</div>`;
+
+    if (byMonth.length <= 12) {
+      // Vertical chart
+      html += `<div class="chart-container">`;
+      for (const m of byMonth) {
+        const pct = maxMonth > 0 ? (m.total / maxMonth) * 100 : 0;
+        const barPct = pct > 0 ? Math.max(pct, 3) : 0;
+        const label = m.month !== "unknown" ? formatMonth(m.month) : "?";
+        html += `<div class="chart-col">`;
+        html += `<div class="chart-amount">${esc(formatAmount(m.total))}</div>`;
+        html += `<div class="chart-bar-wrap"><div class="chart-bar" style="height:${barPct.toFixed(1)}%"></div></div>`;
+        html += `<div class="chart-label">${esc(label)}</div>`;
+        html += `</div>`;
+      }
       html += `</div>`;
+    } else {
+      // Fallback horizontal bars
+      for (const m of byMonth) {
+        const pct = maxMonth > 0 ? (m.total / maxMonth) * 100 : 0;
+        const label = m.month !== "unknown" ? formatMonth(m.month) : "Unknown";
+        html += `<div class="bar-row">`;
+        html += `<div class="bar-label">${esc(label)}</div>`;
+        html += `<div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%"></div></div>`;
+        html += `<div class="bar-value">${esc(formatAmount(m.total))}</div>`;
+        html += `</div>`;
+      }
     }
     html += `</div>`;
   }
@@ -644,6 +761,7 @@ async function renderDashboard() {
     );
   }
 
+  html += `</div></div>`; // close main + content-grid
   dashboardContent.innerHTML = html;
 }
 
@@ -675,19 +793,10 @@ async function renderSettings() {
     html += `<p class="settings-note">IndexedDB is unavailable (possibly private browsing).</p>`;
   } else {
     const usage = await statementStore.storageUsage();
-    const estimatedQuota = isMobileSafari() ? 50 * 1024 * 1024 : 200 * 1024 * 1024;
-    const pct = estimatedQuota > 0 ? (usage.bytes / estimatedQuota) * 100 : 0;
-    const barClass = pct > 90 ? "danger" : pct > 80 ? "warning" : "";
 
     html += `<div class="settings-row">`;
-    html += `<span>${usage.count} statement${usage.count !== 1 ? "s" : ""} stored (~${formatBytes(usage.bytes)})</span>`;
+    html += `<span>${usage.count} statement${usage.count !== 1 ? "s" : ""} stored &middot; ${formatBytes(usage.bytes)}</span>`;
     html += `</div>`;
-    html += `<div class="quota-bar"><div class="quota-fill ${barClass}" style="width:${Math.min(pct, 100).toFixed(1)}%"></div></div>`;
-    html += `<p class="settings-note">~${formatBytes(usage.bytes)} / ~${formatBytes(estimatedQuota)} estimated</p>`;
-
-    if (pct > 80) {
-      html += `<p class="settings-note detect-warn">⚠️ Storage usage is high. Consider deleting old statements.</p>`;
-    }
 
     html += `<button class="btn btn-danger btn-sm" id="clear-all-stmts" style="margin-top:12px">Clear All Statements</button>`;
     html += `<button class="btn btn-secondary btn-sm" id="reset-db" style="margin-top:12px;margin-left:6px">Reset Database</button>`;
@@ -766,21 +875,25 @@ window.addEventListener("beforeunload", () => {
 function renderResults(d) {
   let html = "";
 
-  // Summary header
-  html += `<div class="results-header">`;
+  // Asymmetric grid: sidebar (summary) + main (tables)
+  html += `<div class="results-header fade-settle">`;
   html += `<h2 class="results-title">Parsed Statement</h2>`;
-  html += `<div class="summary-grid">`;
+  html += `</div>`;
+  html += `<div class="content-grid">`;
+  html += `<div class="fade-settle-1">`;
+  html += `<div class="summary-grid summary-grid--sidebar">`;
+  html += summaryCard("Total Due", d.statement_total_amount_due || "-", "hero");
+  html += summaryCard("Spend Total", d.overall_total || "0.00", "hero");
   html += summaryCard("Bank", (d.bank || "-").toUpperCase());
   html += summaryCard("Name", d.name || "-");
   html += summaryCard("Card", d.card_number || "-");
   html += summaryCard("Due Date", d.due_date || "-");
-  html += summaryCard("Total Due", d.statement_total_amount_due || "-");
-  html += summaryCard("Spend Total", d.overall_total || "0.00");
   html += summaryCard("Reward Points", d.overall_reward_points || "0");
   if (d.reward_points_balance) {
     html += summaryCard("Points Balance", d.reward_points_balance);
   }
   html += `</div></div>`;
+  html += `<div class="fade-settle-2">`;
 
   // Payments / Refunds
   if (d.payments_refunds && d.payments_refunds.length) {
@@ -788,13 +901,17 @@ function renderResults(d) {
       "Payments / Refunds",
       d.payments_refunds.length,
       ["Date", "Time", "Person", "Narration", "Amount"],
-      d.payments_refunds.map((t) => [
-        { v: t.date, c: "col-date" },
-        { v: t.time || "", c: "col-time" },
-        { v: t.person || "" },
-        { v: t.narration, c: "col-narration" },
-        { v: t.amount, c: "col-amount" },
-      ]),
+      d.payments_refunds.map((t) => {
+        const row = [
+          { v: t.date, c: "col-date" },
+          { v: t.time || "", c: "col-time" },
+          { v: t.person || "" },
+          { v: t.narration, c: "col-narration" },
+          { v: t.amount, c: "col-amount" },
+        ];
+        row.rowClass = "is-credit";
+        return row;
+      }),
     );
     html += `<div class="table-group-total">Total: ${d.payments_refunds_total || "0.00"}</div>`;
   }
@@ -805,13 +922,18 @@ function renderResults(d) {
       "Adjustments",
       d.adjustments.length,
       ["Date", "Side", "Person", "Narration", "Amount"],
-      d.adjustments.map((t) => [
-        { v: t.date, c: "col-date" },
-        { v: t.adjustment_side || "" },
-        { v: t.person || "" },
-        { v: t.narration, c: "col-narration" },
-        { v: t.amount, c: "col-amount" },
-      ]),
+      d.adjustments.map((t) => {
+        const row = [
+          { v: t.date, c: "col-date" },
+          { v: t.adjustment_side || "" },
+          { v: t.person || "" },
+          { v: t.narration, c: "col-narration" },
+          { v: t.amount, c: "col-amount" },
+        ];
+        if (t.adjustment_side === "credit") row.rowClass = "is-credit";
+        else if (t.adjustment_side === "debit") row.rowClass = "is-debit";
+        return row;
+      }),
     );
     html += `<div class="table-group-total">Debits: ${d.adjustments_debit_total || "0.00"} &middot; Credits: ${d.adjustments_credit_total || "0.00"}</div>`;
   }
@@ -885,9 +1007,14 @@ function renderResults(d) {
     );
   }
 
-  // Reconciliation
+  // Reconciliation — Confidence Panel
   if (d.reconciliation) {
     const r = d.reconciliation;
+    const delta = parseFloat(String(r.smart_delta || "0").replace(/,/g, "")) || 0;
+    const absDelta = Math.abs(delta);
+    const confidence = absDelta === 0 ? "balanced" : absDelta < 1 ? "minor" : "review";
+    const confidenceLabel = { balanced: "Balanced", minor: "Minor delta", review: "Needs review" }[confidence];
+
     const rows = [
       ["Statement Total Due", r.statement_total_amount_due],
       ["Previous Balance", r.header_previous_balance],
@@ -902,14 +1029,20 @@ function renderResults(d) {
     }
     rows.push(["Delta (Statement vs Net)", r.delta_statement_vs_parsed_net]);
 
-    html += `<div class="table-section">`;
+    html += `<div class="table-section recon-panel">`;
+    html += `<div class="recon-header">`;
     html += `<h3 class="table-title">Reconciliation</h3>`;
+    html += `<span class="confidence-pill confidence-${confidence}">${confidenceLabel}</span>`;
+    html += `</div>`;
+    html += `<div class="recon-hero-delta">${esc(r.smart_delta || "0.00")}</div>`;
     html += `<div class="recon-grid">`;
     for (const [k, v] of rows) {
       html += `<div class="recon-row"><div class="recon-key">${esc(k)}</div><div class="recon-val">${esc(v || "-")}</div></div>`;
     }
     html += `</div></div>`;
   }
+
+  html += `</div></div>`; // close main + content-grid
 
   // Export bar
   html += `<div class="export-bar">`;
@@ -934,7 +1067,8 @@ function tableSection(title, count, columns, rows) {
   for (const col of columns) h += `<th>${esc(col)}</th>`;
   h += `</tr></thead><tbody>`;
   for (const row of rows) {
-    h += `<tr>`;
+    const rc = row.rowClass ? ` class="${row.rowClass}"` : "";
+    h += `<tr${rc}>`;
     for (const cell of row) {
       const cls = cell.c ? ` class="${cell.c}"` : "";
       h += `<td${cls}>${esc(cell.v || "")}</td>`;
@@ -945,8 +1079,9 @@ function tableSection(title, count, columns, rows) {
   return h;
 }
 
-function summaryCard(label, value) {
-  return `<div class="summary-item"><div class="summary-label">${esc(label)}</div><div class="summary-value">${esc(value)}</div></div>`;
+function summaryCard(label, value, variant) {
+  const cls = variant ? ` summary-item--${variant}` : "";
+  return `<div class="summary-item${cls}"><div class="summary-label">${esc(label)}</div><div class="summary-value">${esc(value)}</div></div>`;
 }
 
 function esc(s) {

@@ -15,8 +15,8 @@
 
 /* global importScripts, loadPyodide */
 
-// Self-hosted Pyodide runtime on R2.
-const PYODIDE_BASE = "https://files.akhilnarang.dev/cdn/pyodide/v0.29.3";
+// Pyodide CDN — self-hosted for prod (build.sh patches this), jsdelivr for dev.
+const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.29.3/full";
 const PYODIDE_JS = `${PYODIDE_BASE}/pyodide.js`;
 
 let pyodide = null;
