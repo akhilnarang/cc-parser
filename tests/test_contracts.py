@@ -9,7 +9,10 @@ from unittest.mock import patch
 from cc_parser.cli import BankOption
 from cc_parser.extractor import extract_raw_pdf
 from cc_parser.parsers.factory import detect_bank, get_parser
-from cc_parser.parsers.reconciliation import extract_due_date, extract_due_date_from_pages
+from cc_parser.parsers.reconciliation import (
+    extract_due_date,
+    extract_due_date_from_pages,
+)
 
 
 class DueDateContractTests(unittest.TestCase):
@@ -98,7 +101,11 @@ class PrivacyTests(unittest.TestCase):
         with (
             patch(
                 "cc_parser.extractor.prepare_pdf_bytes_if_encrypted",
-                return_value=(None, {"is_encrypted": False, "was_decrypted": False}, {}),
+                return_value=(
+                    None,
+                    {"is_encrypted": False, "was_decrypted": False},
+                    {},
+                ),
             ),
             patch("cc_parser.extractor.pdfplumber.open", return_value=fake_plumber_doc),
             patch("cc_parser.extractor.fitz.open", return_value=fake_fitz_doc),

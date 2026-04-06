@@ -34,10 +34,10 @@ from cc_parser.parsers.narration import clean_narration_artifacts
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     clean_space,
@@ -58,8 +58,13 @@ _SECTION_EMIS = "EMIS"
 _SECTION_REFUNDS = "REFUNDS & REPAYMENTS"
 
 # All recognized section headers (without amounts — standalone headers only)
-_SECTION_HEADERS = {_SECTION_SPENDS, _SECTION_CASHBACK, _SECTION_EMIS,
-                    _SECTION_REFUNDS, "REFUNDS"}
+_SECTION_HEADERS = {
+    _SECTION_SPENDS,
+    _SECTION_CASHBACK,
+    _SECTION_EMIS,
+    _SECTION_REFUNDS,
+    "REFUNDS",
+}
 
 _DEBIT_SECTIONS = {_SECTION_SPENDS, _SECTION_EMIS}
 _CREDIT_SECTIONS = {_SECTION_CASHBACK, _SECTION_REFUNDS, "REFUNDS"}
@@ -105,7 +110,10 @@ def _parse_slice_date(tokens: list[str], start: int) -> tuple[str | None, int]:
         return None, 0
 
     # Handle 'YY format (e.g. "'26" → "2026")
-    if not re.fullmatch(r"\d{2,4}", year_cleaned := year_tok.lstrip("'").lstrip("\u2018").lstrip("\u2019")):
+    if not re.fullmatch(
+        r"\d{2,4}",
+        year_cleaned := year_tok.lstrip("'").lstrip("\u2018").lstrip("\u2019"),
+    ):
         return None, 0
 
     day_padded = day.zfill(2)
@@ -123,9 +131,7 @@ def _infer_year_from_text(full_text: str) -> str | None:
     return None
 
 
-def _extract_slice_name(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_slice_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from Slice statement.
 
     Slice prints the name as ``NAME's`` on the first line (for example,
@@ -137,11 +143,15 @@ def _extract_slice_name(
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             if len(tokens) == 1:
                 # Match "NAME's" pattern
-                if match := re.fullmatch(r"([A-Za-z][A-Za-z ]+?)[''\u2019]s", tokens[0]):
+                if match := re.fullmatch(
+                    r"([A-Za-z][A-Za-z ]+?)[''\u2019]s", tokens[0]
+                ):
                     return match.group(1).upper()
 
     # Text-level fallback: look for "NAME's" pattern
-    if match := re.search(r"^([A-Za-z][A-Za-z ]+?)[''\u2019]s\b", full_text, re.MULTILINE):
+    if match := re.search(
+        r"^([A-Za-z][A-Za-z ]+?)[''\u2019]s\b", full_text, re.MULTILINE
+    ):
         return match.group(1).upper()
 
     return None
@@ -175,9 +185,7 @@ def _extract_slice_card_number(
     return candidates[0] if candidates else None
 
 
-def _extract_slice_due_date(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_slice_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract due date from Slice statement.
 
     Slice uses ``Due on DD Mon`` format (e.g. ``Due on 5 Apr``) without
@@ -199,7 +207,9 @@ def _extract_slice_due_date(
                 re.IGNORECASE,
             ):
                 day = due_match.group(1).zfill(2)
-                if (month := MONTH_ABBREVS.get(due_match.group(2).upper()[:3])) and year:
+                if (
+                    month := MONTH_ABBREVS.get(due_match.group(2).upper()[:3])
+                ) and year:
                     return f"{day}/{month}/{year}"
 
     # Text fallback
@@ -306,9 +316,14 @@ def _extract_slice_transactions(
             continue
 
         # Non-transaction sections end scanning permanently
-        if any(skip in joined_upper for skip in (
-            "GST DETAILS", "GLOSSARY", "MONIES",
-        )):
+        if any(
+            skip in joined_upper
+            for skip in (
+                "GST DETAILS",
+                "GLOSSARY",
+                "MONIES",
+            )
+        ):
             scanning_done = True
             line_idx += 1
             continue
@@ -330,8 +345,7 @@ def _extract_slice_transactions(
 
         # Build narration from tokens before the amount
         narration_tokens = [
-            t for t in tokens[:narration_end]
-            if t and t not in {"|", "||", ":", "--"}
+            t for t in tokens[:narration_end] if t and t not in {"|", "||", ":", "--"}
         ]
         narration = clean_space(" ".join(narration_tokens))
         narration = clean_narration_artifacts(narration)
@@ -349,8 +363,7 @@ def _extract_slice_transactions(
         while lookahead <= max_lookahead and (line_idx + lookahead) < len(all_lines):
             _, next_line_words = all_lines[line_idx + lookahead]
             next_tokens = [
-                normalize_token(str(w.get("text", "")))
-                for w in next_line_words
+                normalize_token(str(w.get("text", ""))) for w in next_line_words
             ]
 
             if not next_tokens:
@@ -376,20 +389,24 @@ def _extract_slice_transactions(
             break
 
         if date_value is None:
-            rejected_date_lines.append({
-                "page": page_number,
-                "line_index": line_idx,
-                "reason": "date_not_found_in_lookahead",
-                "tokens": tokens,
-            })
+            rejected_date_lines.append(
+                {
+                    "page": page_number,
+                    "line_index": line_idx,
+                    "reason": "date_not_found_in_lookahead",
+                    "tokens": tokens,
+                }
+            )
             line_idx += 1
             continue
 
-        date_lines.append({
-            "page": page_number,
-            "line_index": line_idx,
-            "tokens": tokens,
-        })
+        date_lines.append(
+            {
+                "page": page_number,
+                "line_index": line_idx,
+                "tokens": tokens,
+            }
+        )
 
         # Determine credit/debit from section header
         is_credit = current_section in _CREDIT_SECTIONS
@@ -491,7 +508,8 @@ def _extract_slice_account_summary(
                 emis = line_amount
 
     candidates = [
-        a for a in [spends, refunds_repayments, cashback, interest, surcharge, emis]
+        a
+        for a in [spends, refunds_repayments, cashback, interest, surcharge, emis]
         if a
     ]
 
@@ -574,17 +592,25 @@ class SliceParser(StatementParser):
         # Cashback is categorically different from refunds/reversals —
         # do NOT run adjustment pairing on cashback credits.
         cashback_credits = [
-            txn for txn in credit_transactions
+            txn
+            for txn in credit_transactions
             if (txn.credit_reasons or "").startswith("section:cashback")
         ]
         refund_credits = [
-            txn for txn in credit_transactions
+            txn
+            for txn in credit_transactions
             if not (txn.credit_reasons or "").startswith("section:cashback")
         ]
 
         # Only pair refunds (not cashback) with debits for adjustments
-        debit_transactions, refund_credits, adjustments = split_paired_adjustments(
-            debit_transactions, refund_credits
+        # Assign transaction IDs first
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        refund_credits = assign_transaction_ids(refund_credits, self.bank)
+        cashback_credits = assign_transaction_ids(cashback_credits, self.bank)
+
+        # Detect adjustment pairs (only on refund credits, not cashback)
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, refund_credits, self.bank
         )
 
         # Recombine: cashback + remaining refunds = all credits
@@ -595,10 +621,6 @@ class SliceParser(StatementParser):
 
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
-
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
 
         due_date = _extract_slice_due_date(full_text, pages)
         statement_total_amount_due = _extract_slice_total_amount_due(full_text, pages)
@@ -622,9 +644,7 @@ class SliceParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             transactions=debit_transactions,
             reconciliation=reconciliation,

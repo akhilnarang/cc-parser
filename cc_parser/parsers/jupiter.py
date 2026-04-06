@@ -32,16 +32,17 @@ from cc_parser.parsers.narration import clean_narration_artifacts
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     clean_space,
     format_amount,
     normalize_amount,
     normalize_token,
+    parse_amount,
     parse_amount_token,
     parse_multi_token_date,
     sum_amounts,
@@ -103,9 +104,7 @@ def _is_credit_narration(narration: str) -> tuple[bool, str | None]:
     return False, None
 
 
-def _extract_jupiter_name(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_jupiter_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from Jupiter statement.
 
     Jupiter prints the bare name (no honorific) on the line after the
@@ -116,12 +115,15 @@ def _extract_jupiter_name(
         for i, line_words in enumerate(lines):
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             joined = clean_space(" ".join(tokens)).upper()
-            if joined == "NAME CARD NUMBER" or "NAME" in joined and "CARD NUMBER" in joined:
+            if (
+                joined == "NAME CARD NUMBER"
+                or "NAME" in joined
+                and "CARD NUMBER" in joined
+            ):
                 # Name is on the next line
                 if i + 1 < len(lines):
                     next_tokens = [
-                        normalize_token(str(w.get("text", "")))
-                        for w in lines[i + 1]
+                        normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                     ]
                     # Filter out card number tokens (XXXX and digits)
                     name_parts = []
@@ -199,8 +201,7 @@ def _extract_jupiter_due_date(
             # Check the next line for DD Mon YYYY
             if i + 1 < len(lines):
                 next_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[i + 1]
+                    normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                 ]
                 # Try to find DD Mon YYYY in next line tokens
                 for k in range(len(next_tokens) - 2):
@@ -254,8 +255,7 @@ def _extract_jupiter_total_amount_due(
             # Check next line
             if i + 1 < len(lines):
                 next_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[i + 1]
+                    normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                 ]
                 for k, t in enumerate(next_tokens):
                     if t.upper() == "RS." and k + 1 < len(next_tokens):
@@ -396,8 +396,7 @@ def _extract_jupiter_transactions(
             if line_index + 1 < len(lines):
                 next_line_words = lines[line_index + 1]
                 next_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in next_line_words
+                    normalize_token(str(w.get("text", ""))) for w in next_line_words
                 ]
                 if len(next_tokens) >= 1:
                     # Check if first token is a time (HH:MM)
@@ -405,7 +404,10 @@ def _extract_jupiter_transactions(
                     if time_match:
                         time_str = time_match.group(1)
                         # Check for AM/PM
-                        if len(next_tokens) >= 2 and next_tokens[1].upper() in ("AM", "PM"):
+                        if len(next_tokens) >= 2 and next_tokens[1].upper() in (
+                            "AM",
+                            "PM",
+                        ):
                             time_value = f"{time_str} {next_tokens[1].upper()}"
                         else:
                             time_value = time_str
@@ -516,8 +518,7 @@ def _extract_jupiter_account_summary(
             # puts the label and the Rs. amount on separate visual lines)
             if line_amount is None and i + 1 < len(lines):
                 next_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[i + 1]
+                    normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                 ]
                 line_amount = _extract_rs_amount(next_tokens)
 
@@ -543,8 +544,17 @@ def _extract_jupiter_account_summary(
 
     # Build summary
     candidates = [
-        a for a in [previous_balance, spends, interest_charges, fees,
-                    applicable_taxes, repayments, refunds, waivers]
+        a
+        for a in [
+            previous_balance,
+            spends,
+            interest_charges,
+            fees,
+            applicable_taxes,
+            repayments,
+            refunds,
+            waivers,
+        ]
         if a
     ]
 
@@ -564,7 +574,9 @@ def _extract_jupiter_account_summary(
         for val in [repayments, refunds, waivers]:
             if val:
                 total_credits += parse_amount(val)
-        combined_credits = format_amount(total_credits) if total_credits > 0 else repayments
+        combined_credits = (
+            format_amount(total_credits) if total_credits > 0 else repayments
+        )
 
         return StatementSummary(
             summary_amount_candidates=candidates,
@@ -620,8 +632,13 @@ class JupiterParser(StatementParser):
             transactions
         )
 
-        debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
-            debit_transactions, credit_transactions
+        # Assign transaction IDs
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
+
+        # Detect adjustment pairs
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, credit_transactions, self.bank
         )
 
         card_summaries, overall_total = build_card_summaries(debit_transactions, name)
@@ -629,10 +646,6 @@ class JupiterParser(StatementParser):
 
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
-
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
 
         due_date = _extract_jupiter_due_date(full_text, pages)
         statement_total_amount_due = _extract_jupiter_total_amount_due(full_text, pages)
@@ -656,9 +669,7 @@ class JupiterParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             transactions=debit_transactions,
             reconciliation=reconciliation,

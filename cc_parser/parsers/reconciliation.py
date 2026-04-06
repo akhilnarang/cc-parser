@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any
 
 from cc_parser.parsers.models import (
+    AdjustmentPair,
     CardSummary,
     PersonGroup,
     Reconciliation,
@@ -23,6 +24,16 @@ from cc_parser.parsers.tokens import (
     normalize_token,
 )
 from cc_parser.parsers.extraction import group_words_into_lines
+from cc_parser.parsers.candidate_generation import generate_candidate_pairs
+from cc_parser.parsers.scoring_engine import (
+    score_candidate_pair,
+    determine_confidence,
+    determine_kind,
+    calculate_date_gap,
+    calculate_amount_delta,
+)
+from cc_parser.parsers.scoring_constants import MERCHANT_SIMILARITY_MEDIUM
+from cc_parser.parsers.match_selection import select_best_non_overlapping_pairs
 
 
 def _format_dd_mm_yyyy(value: datetime) -> str:
@@ -282,109 +293,140 @@ def _parse_txn_date(value: str | None) -> datetime | None:
         return None
 
 
+def detect_adjustment_pairs(
+    debit_transactions: list[Transaction],
+    credit_transactions: list[Transaction],
+    bank: str | None = None,
+) -> list[AdjustmentPair]:
+    """Detect possible adjustment pairs (refunds/reversals) between debits and credits.
+
+    This is the main entry point for adjustment pair detection. It is non-destructive
+    and returns all scored candidate pairs.
+
+    Args:
+        debit_transactions: List of debit transactions
+        credit_transactions: List of credit transactions
+        bank: Optional bank identifier for normalization
+
+    Returns:
+        List of all scored AdjustmentPair candidates (unfiltered)
+    """
+    # Handle credit balance refund (one-sided debit)
+    contextual_pairs = []
+    onesided_debit_ids: set[str] = set()
+    for debit in debit_transactions:
+        narration = (debit.narration or "").upper()
+        reward = (debit.reward_points or "").strip()
+        if "CREDIT BALANCE REFUND" in narration and parse_amount(reward) == 0:
+            onesided_debit_ids.add(debit.transaction_id)
+            pair = AdjustmentPair(
+                pair_id=f"pair_onesided_{debit.transaction_id}",
+                debit_transaction_id=debit.transaction_id,
+                credit_transaction_id=None,
+                debit=debit,
+                credit=None,
+                score=75,
+                confidence="high",
+                kind="credit_balance_refund",
+                amount_delta=format_amount(parse_amount(debit.amount or "0")),
+                amount_delta_percent=None,
+                date_gap_days=None,
+                merchant_similarity=None,
+                narration_similarity=None,
+                reasons=["contextual_credit_balance_refund_debit"],
+            )
+            contextual_pairs.append(pair)
+
+    # Exclude one-sided debits from regular candidate generation
+    regular_debits = [
+        d for d in debit_transactions if d.transaction_id not in onesided_debit_ids
+    ]
+
+    # Generate candidate pairs with filtering
+    candidates = generate_candidate_pairs(regular_debits, credit_transactions)
+
+    # Score all candidates
+    all_pairs = []
+    pair_counter = 0
+
+    for debit, credit in candidates:
+        score, reasons, merchant_sim, narration_sim = score_candidate_pair(
+            debit, credit, bank
+        )
+
+        date_gap = calculate_date_gap(debit, credit)
+        delta_decimal, delta_str, delta_pct_str = calculate_amount_delta(debit, credit)
+
+        confidence = determine_confidence(score)
+        kind = determine_kind(
+            debit, credit, delta_decimal, delta_pct_str, merchant_sim, score
+        )
+
+        pair = AdjustmentPair(
+            pair_id=f"pair_{pair_counter:04d}",
+            debit_transaction_id=debit.transaction_id,
+            credit_transaction_id=credit.transaction_id,
+            debit=debit,
+            credit=credit,
+            score=score,
+            confidence=confidence,
+            kind=kind,
+            amount_delta=delta_str,
+            amount_delta_percent=delta_pct_str,
+            date_gap_days=date_gap,
+            merchant_similarity=merchant_sim,
+            narration_similarity=narration_sim,
+            reasons=reasons,
+        )
+
+        all_pairs.append(pair)
+        pair_counter += 1
+
+    # Filter to pairs with refund evidence BEFORE greedy selection, so
+    # coincidental matches (amount+card+person+date) can't reserve a
+    # debit/credit slot and block a real refund with weaker metadata.
+    evidenced = []
+    for pair in all_pairs:
+        has_keyword = any("refund_keyword" in r for r in pair.reasons)
+        has_merchant = (
+            pair.merchant_similarity is not None
+            and pair.merchant_similarity >= MERCHANT_SIMILARITY_MEDIUM
+        )
+        if has_keyword or has_merchant:
+            evidenced.append(pair)
+
+    # Select best non-overlapping pairs from verified candidates
+    selected = select_best_non_overlapping_pairs(evidenced)
+
+    return contextual_pairs + selected
+
+
 def split_paired_adjustments(
     debit_transactions: list[Transaction],
     credit_transactions: list[Transaction],
 ) -> tuple[list[Transaction], list[Transaction], list[Transaction]]:
-    """Split offsetting debit/credit pairs into separate adjustments bucket."""
+    """Split offsetting debit/credit pairs into separate adjustments bucket.
 
-    def is_contextual_adjustment_debit(txn: Transaction) -> bool:
-        narration = (txn.narration or "").upper()
-        reward = (txn.reward_points or "").strip()
-        return "CREDIT BALANCE REFUND" in narration and reward in {"", "0"}
+    .. deprecated::
+        Use :func:`detect_adjustment_pairs` instead. This function is kept for
+        backward compatibility but will be removed in a future version. The new
+        adjustment pairing system provides better accuracy and more detailed
+        information about refunds and reversals.
 
-    credit_buckets: dict[tuple[str, str, str], list[int]] = {}
-    for idx, txn in enumerate(credit_transactions):
-        narration_upper = (txn.narration or "").upper()
-        if "PAYMENT" in narration_upper and "RECEIVED" in narration_upper:
-            continue
-        key = (
-            txn.card_number or "UNKNOWN",
-            txn.person or "UNKNOWN",
-            txn.amount or "0",
-        )
-        credit_buckets.setdefault(key, []).append(idx)
-
-    used_credit: set[int] = set()
-    used_debit: set[int] = set()
-    contextual_debit: set[int] = {
-        idx
-        for idx, txn in enumerate(debit_transactions)
-        if is_contextual_adjustment_debit(txn)
-    }
-
-    for d_idx, debit in enumerate(debit_transactions):
-        reward_token = (debit.reward_points or "0").strip()
-        if reward_token not in {"", "0"}:
-            continue
-
-        key = (
-            debit.card_number or "UNKNOWN",
-            debit.person or "UNKNOWN",
-            debit.amount or "0",
-        )
-        candidates = credit_buckets.get(key, [])
-        if not candidates:
-            continue
-
-        debit_date = _parse_txn_date(debit.date)
-        best_idx: int | None = None
-        best_distance = 10**9
-
-        for c_idx in candidates:
-            if c_idx in used_credit:
-                continue
-            credit = credit_transactions[c_idx]
-            credit_date = _parse_txn_date(credit.date)
-
-            if debit_date is None or credit_date is None:
-                distance = 999
-            else:
-                distance = abs((debit_date - credit_date).days)
-
-            if distance <= 15 and distance < best_distance:
-                best_distance = distance
-                best_idx = c_idx
-
-        if best_idx is not None:
-            used_debit.add(d_idx)
-            used_credit.add(best_idx)
-
-    adjustments: list[Transaction] = []
-    used_debit = used_debit | contextual_debit
-
-    for idx in sorted(used_debit):
-        update: dict[str, str] = {"adjustment_side": "debit"}
-        if idx in contextual_debit:
-            update["adjustment_reason"] = "credit_balance_refund"
-        adjustments.append(debit_transactions[idx].model_copy(update=update))
-    for idx in sorted(used_credit):
-        adjustments.append(
-            credit_transactions[idx].model_copy(update={"adjustment_side": "credit"})
-        )
-
-    kept_debits = [
-        txn for idx, txn in enumerate(debit_transactions) if idx not in used_debit
-    ]
-    kept_credits = [
-        txn for idx, txn in enumerate(credit_transactions) if idx not in used_credit
-    ]
-    return kept_debits, kept_credits, adjustments
+        This function now returns empty adjustments list and unchanged transactions.
+    """
+    # Return unchanged transactions and empty adjustments for backward compatibility
+    return debit_transactions, credit_transactions, []
 
 
 def compute_adjustment_totals(adjustments: list[Transaction]) -> tuple[str, str]:
-    """Return formatted debit/credit totals for the adjustment bucket."""
-    debit_total = Decimal("0")
-    credit_total = Decimal("0")
+    """Return formatted debit/credit totals for the adjustment bucket.
 
-    for txn in adjustments:
-        amount = parse_amount(str(txn.amount or "0"))
-        if txn.adjustment_side == "debit":
-            debit_total += amount
-        elif txn.adjustment_side == "credit":
-            credit_total += amount
-
-    return format_amount(debit_total), format_amount(credit_total)
+    .. deprecated::
+        This function is deprecated and kept only for backward compatibility.
+        It returns ("0.00", "0.00") since the adjustment fields have been removed.
+    """
+    return "0.00", "0.00"
 
 
 def group_transactions_by_person(
@@ -464,6 +506,7 @@ __all__ = [
     "extract_total_amount_due",
     "extract_statement_summary",
     "build_reconciliation",
+    "detect_adjustment_pairs",
     "split_paired_adjustments",
     "compute_adjustment_totals",
     "group_transactions_by_person",

@@ -33,10 +33,10 @@ from cc_parser.parsers.narration import (
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     SEPARATOR_TOKENS,
@@ -86,8 +86,7 @@ def _extract_idfc_name(full_text: str, pages: list[dict[str, Any]]) -> str | Non
             if joined == "STATEMENT SUMMARY" and i >= 2:
                 # Name is typically the line before "Statement Summary"
                 prev_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[i - 1]
+                    normalize_token(str(w.get("text", ""))) for w in lines[i - 1]
                 ]
                 candidate = clean_space(" ".join(prev_tokens)).upper()
                 parts = candidate.split()
@@ -129,9 +128,7 @@ def _extract_idfc_card_number(
             joined = clean_space(" ".join(tokens)).upper()
             if "CARD NUMBER:" in joined or "CARD NUMBER :" in joined:
                 # Extract the card digits after "Card Number:"
-                card_match = re.search(
-                    r"CARD\s+NUMBER\s*:\s*(X+\s*\d+)", joined
-                )
+                card_match = re.search(r"CARD\s+NUMBER\s*:\s*(X+\s*\d+)", joined)
                 if card_match:
                     raw = card_match.group(1).replace(" ", "").upper()
                     # Pad to 16 chars with X prefix
@@ -151,9 +148,7 @@ def _extract_idfc_card_number(
     return candidates[0] if candidates else None
 
 
-def _extract_idfc_due_date(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_idfc_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract due date from IDFC statement.
 
     IDFC uses ``DD/Mon/YYYY`` format (e.g. ``08/Nov/2025``) in the
@@ -172,10 +167,8 @@ def _extract_idfc_due_date(
             # The header row has column labels; values are on the next line.
             # Find the x-position of "Payment" in the header to locate the
             # due-date value in the values row by x proximity.
-            due_x: float | None = None
             for w in line_words:
                 if normalize_token(str(w.get("text", ""))).upper() == "PAYMENT":
-                    due_x = float(w.get("x0", 0))
                     break
 
             # Scan the next line for DD/Mon/YYYY tokens
@@ -186,15 +179,13 @@ def _extract_idfc_due_date(
             for check_words in lines_to_check:
                 for w in check_words:
                     t = normalize_token(str(w.get("text", "")))
-                    date_match = re.fullmatch(
-                        r"(\d{2})/([A-Za-z]{3})/(\d{4})", t
-                    )
+                    date_match = re.fullmatch(r"(\d{2})/([A-Za-z]{3})/(\d{4})", t)
                     if date_match:
-                        month = MONTH_ABBREVS.get(
-                            date_match.group(2).upper()[:3]
-                        )
+                        month = MONTH_ABBREVS.get(date_match.group(2).upper()[:3])
                         if month:
-                            return f"{date_match.group(1)}/{month}/{date_match.group(3)}"
+                            return (
+                                f"{date_match.group(1)}/{month}/{date_match.group(3)}"
+                            )
                     date_match2 = re.fullmatch(r"\d{2}/\d{2}/\d{4}", t)
                     if date_match2:
                         return t
@@ -269,8 +260,7 @@ def _extract_idfc_total_amount_due(
             if "TOTAL AMOUNT DUE" in joined and "MINIMUM AMOUNT DUE" not in joined:
                 if i + 1 < len(lines):
                     next_tokens = [
-                        normalize_token(str(w.get("text", "")))
-                        for w in lines[i + 1]
+                        normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                     ]
                     for t in next_tokens:
                         stripped = _strip_rupee_prefix(t)
@@ -513,7 +503,11 @@ def _extract_idfc_account_summary(
             joined_upper = clean_space(" ".join(tokens)).upper()
 
             # Detect "Opening + Purchases + Other Debits - Payments ..."
-            if "OPENING" in joined_upper and "PURCHASES" in joined_upper and "PAYMENTS" in joined_upper:
+            if (
+                "OPENING" in joined_upper
+                and "PURCHASES" in joined_upper
+                and "PAYMENTS" in joined_upper
+            ):
                 # Scan ahead for the values line (has 4+ r-prefixed amounts)
                 for offset in range(1, 5):
                     idx = i + offset
@@ -633,8 +627,13 @@ class IdfcParser(StatementParser):
             transactions
         )
 
-        debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
-            debit_transactions, credit_transactions
+        # Assign transaction IDs
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
+
+        # Detect adjustment pairs
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, credit_transactions, self.bank
         )
 
         card_summaries, overall_total = build_card_summaries(debit_transactions, name)
@@ -642,10 +641,6 @@ class IdfcParser(StatementParser):
 
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
-
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
 
         due_date = _extract_idfc_due_date(full_text, pages)
         statement_total_amount_due = _extract_idfc_total_amount_due(full_text, pages)
@@ -669,9 +664,7 @@ class IdfcParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             transactions=debit_transactions,
             reconciliation=reconciliation,

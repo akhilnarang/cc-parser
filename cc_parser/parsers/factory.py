@@ -73,7 +73,12 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
     if "HSBC" in joined or "HSBC" in file_name:
         return "hsbc"
     # Check Jupiter/CSB before SBI to avoid false matches.
-    if "JUPITER" in joined or "CSB BANK" in joined or "EDGE CSB" in joined or "JUPITER" in file_name:
+    if (
+        "JUPITER" in joined
+        or "CSB BANK" in joined
+        or "EDGE CSB" in joined
+        or "JUPITER" in file_name
+    ):
         return "jupiter"
     if "SBI" in joined or "SBI" in file_name:
         return "sbi"

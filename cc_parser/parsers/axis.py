@@ -38,10 +38,10 @@ from cc_parser.parsers.narration import (
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     SEPARATOR_TOKENS,
     clean_space,
@@ -103,9 +103,7 @@ def _format_card(raw: str) -> str:
     return f"{digits[:4]} {digits[4:8]} {digits[8:12]} {digits[12:16]}"
 
 
-def _extract_axis_name(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_axis_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from Axis statement.
 
     Axis prints the name after ``Card No: XXXX Name FULL NAME`` in the
@@ -140,8 +138,7 @@ def _extract_axis_name(
             joined = clean_space(" ".join(tokens)).upper()
             if "CREDIT CARD STATEMENT" in joined and i + 1 < len(lines):
                 next_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[i + 1]
+                    normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                 ]
                 candidate = clean_space(" ".join(next_tokens)).upper()
                 parts = candidate.split()
@@ -203,9 +200,7 @@ def _extract_axis_card_number(
     return candidates[0] if candidates else None
 
 
-def _extract_axis_due_date(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_axis_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract payment due date from Axis statement.
 
     Axis has a PAYMENT SUMMARY header row with ``Payment Due Date``
@@ -298,8 +293,7 @@ def _extract_axis_total_amount_due(
                 continue
 
             next_tokens = [
-                normalize_token(str(w.get("text", "")))
-                for w in lines[i + 1]
+                normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
             ]
 
             # First amount token followed by Cr/Dr
@@ -469,7 +463,11 @@ def _extract_axis_transactions(
                 if raw_tok.upper().endswith(("CR", "DR")) and len(raw_tok) > 2:
                     merged_marker = raw_tok[-2:].upper()
                     raw_tok = raw_tok[:-2]
-                amt = parse_amount_token(raw_tok) if merged_marker else parse_amount_token(tokens[ti])
+                amt = (
+                    parse_amount_token(raw_tok)
+                    if merged_marker
+                    else parse_amount_token(tokens[ti])
+                )
                 if amt and merged_marker:
                     amount_pairs.append((ti, merged_marker))
                     ti += 1
@@ -669,8 +667,7 @@ def _extract_axis_account_summary(
                     break
 
                 val_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[idx]
+                    normalize_token(str(w.get("text", ""))) for w in lines[idx]
                 ]
 
                 # Collect just the amount tokens (skip Cr/Dr markers
@@ -692,7 +689,9 @@ def _extract_axis_account_summary(
                     #  cash_advance, other_charges, total_due]
                     # Sum payments + credits for the received total
                     payments_val = parse_amount(amounts[1])
-                    credits_val = parse_amount(amounts[2]) if len(amounts) > 2 else Decimal("0")
+                    credits_val = (
+                        parse_amount(amounts[2]) if len(amounts) > 2 else Decimal("0")
+                    )
                     combined_credits = format_amount(payments_val + credits_val)
                     result = StatementSummary(
                         summary_amount_candidates=amounts,
@@ -743,7 +742,10 @@ def _extract_axis_reward_points(
                 if i + 1 < len(lines):
                     for w in lines[i + 1]:
                         t = normalize_token(str(w.get("text", "")))
-                        if re.fullmatch(r"\d[\d,]*", t) and len(t.replace(",", "")) >= 2:
+                        if (
+                            re.fullmatch(r"\d[\d,]*", t)
+                            and len(t.replace(",", "")) >= 2
+                        ):
                             return t.replace(",", "")
 
     return None
@@ -792,13 +794,16 @@ class AxisParser(StatementParser):
             transactions
         )
 
-        debit_transactions, credit_transactions, adjustments = (
-            split_paired_adjustments(debit_transactions, credit_transactions)
+        # Assign transaction IDs
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
+
+        # Detect adjustment pairs
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, credit_transactions, self.bank
         )
 
-        card_summaries, overall_total = build_card_summaries(
-            debit_transactions, name
-        )
+        card_summaries, overall_total = build_card_summaries(debit_transactions, name)
         person_groups = group_transactions_by_person(debit_transactions, name)
 
         credit_total = sum_amounts(credit_transactions)
@@ -808,14 +813,8 @@ class AxisParser(StatementParser):
         overall_reward_points = sum_points(debit_transactions)
         reward_points_balance = _extract_axis_reward_points(full_text, pages)
 
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
-
         due_date = _extract_axis_due_date(full_text, pages)
-        statement_total_amount_due = _extract_axis_total_amount_due(
-            full_text, pages
-        )
+        statement_total_amount_due = _extract_axis_total_amount_due(full_text, pages)
         summary_fields = _extract_axis_account_summary(pages)
         reconciliation = build_reconciliation(
             statement_total_amount_due,
@@ -836,9 +835,7 @@ class AxisParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             reward_points_balance=reward_points_balance,
             transactions=debit_transactions,

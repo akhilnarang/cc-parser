@@ -13,6 +13,114 @@ from cc_parser.parsers.tokens import (
 from cc_parser.parsers.cards import looks_like_member_header
 
 
+def normalize_merchant_name(narration: str, bank: str | None = None) -> str:
+    """Normalize merchant name from narration for similarity matching.
+
+    This function strips bank-specific formatting, reference numbers, auth codes,
+    terminal IDs, card fragments, location suffixes, and processor wrappers to
+    extract the core merchant identity.
+
+    Args:
+        narration: Raw transaction narration
+        bank: Optional bank identifier for bank-specific rules
+
+    Returns:
+        Normalized merchant-ish string suitable for similarity matching
+    """
+    if not narration:
+        return ""
+
+    text = narration.upper().strip()
+
+    # Strip common reference patterns
+    text = re.sub(r"\(REF#[^)]*\)", "", text)
+    text = re.sub(r"REF\s*#?\s*\d+", "", text)
+    text = re.sub(r"AUTH\s*CODE\s*:?\s*\w+", "", text)
+    text = re.sub(r"CARD\s*\d{4}", "", text)
+    text = re.sub(r"XX+\d{4}", "", text)
+    text = re.sub(r"\*+\d{4}", "", text)
+
+    # Strip terminal IDs and transaction IDs
+    text = re.sub(r"TERMINAL\s*ID\s*:?\s*\w+", "", text)
+    text = re.sub(r"TXN\s*ID\s*:?\s*\w+", "", text)
+    text = re.sub(r"RRN\s*:?\s*\w+", "", text)
+
+    # Strip long numeric sequences (likely reference numbers)
+    text = re.sub(r"\b\d{8,}\b", "", text)
+
+    # Strip processor wrappers
+    processor_patterns = [
+        r"REFUND\s+FR(OM|M)\s+",
+        r"RAZORPAY\s+PAYMENTS?\s*",
+        r"PAYMENT\s+GATEWAY\s*",
+        r"\bGATEWAY\b\s*",
+        r"\bPG\b\s+",
+    ]
+    for pattern in processor_patterns:
+        text = re.sub(pattern, "", text)
+
+    # Strip cosmetic wording at start/end
+    cosmetic_patterns = [
+        r"^REFUND\s+",
+        r"^REVERSAL\s+",
+        r"\s+REFUND$",
+        r"\s+REVERSAL$",
+        r"\s+REVERSED$",
+    ]
+    for pattern in cosmetic_patterns:
+        text = re.sub(pattern, "", text)
+
+    # Strip location suffixes (city/country codes)
+    text = re.sub(r"\s+IN/[A-Z]{2,}$", "", text)  # e.g., "IN/KA", "IN/BANGALORE"
+    # Only strip known country codes, not arbitrary 2-char merchant endings
+    text = re.sub(r"\s+(?:US|UK|SG|AE|AU|HK|JP|DE|FR|NL|CA)$", "", text)
+
+    # Strip noisy add-ons
+    text = re.sub(r"PAY\s+IN\s+EMI'?S?", "", text)
+
+    # Bank-specific normalization
+    if bank:
+        bank = bank.lower()
+        if bank == "axis":
+            # Axis-specific patterns
+            text = re.sub(r"VISA\s+POS\s+TXN\s+AT\s+", "", text)
+            text = re.sub(r"POS\s+TXN\s+AT\s+", "", text)
+            # Strip "IN/MERCHANT CITY" patterns (e.g., "IN/ZEPTO BANGALORE" → "ZEPTO")
+            text = re.sub(r"^IN/([A-Z]+)\s+[A-Z]+$", r"\1", text)
+            text = re.sub(r"^IN/([A-Z]+)$", r"\1", text)
+        elif bank == "sbi":
+            # SBI-specific patterns
+            text = re.sub(r"POS\s+\d+-\d+\s+", "", text)
+        elif bank == "hsbc":
+            # HSBC-specific patterns
+            pass
+        elif bank == "icici":
+            # ICICI-specific patterns
+            pass
+        elif bank == "hdfc":
+            # HDFC-specific patterns
+            pass
+        elif bank == "idfc":
+            # IDFC-specific patterns
+            pass
+        elif bank == "indusind":
+            # IndusInd-specific patterns
+            pass
+        elif bank == "slice":
+            # Slice-specific patterns
+            pass
+        elif bank == "jupiter":
+            # Jupiter-specific patterns
+            pass
+        elif bank == "bob":
+            # BOB-specific patterns
+            pass
+
+    # Final cleanup
+    text = clean_space(text)
+    return text.strip()
+
+
 def _is_noise_context_line(tokens: list[str]) -> bool:
     """Return True for obvious non-transaction helper/footer lines."""
     joined_upper = clean_space(" ".join(tokens)).upper()
@@ -216,6 +324,7 @@ def extract_continuation_narration(
 
 
 __all__ = [
+    "normalize_merchant_name",
     "collect_row_context_tokens",
     "clean_narration_artifacts",
     "needs_context_merge",
