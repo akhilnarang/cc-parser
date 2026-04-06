@@ -34,12 +34,12 @@ from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transact
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     extract_due_date_from_pages,
     extract_name,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     clean_space,
     format_amount,
@@ -317,18 +317,15 @@ def _extract_bob_transactions(
 
             # Parse particulars — scan ALL lines for member headers, not just
             # the first. This handles add-on card sections mid-table.
-            particulars_raw = _split_nonempty(
-                row[2] if len(row) > 2 else None
-            )
+            particulars_raw = _split_nonempty(row[2] if len(row) > 2 else None)
             current_member: str | None = None
-            current_card_suffix: str | None = None
             narrations: list[str] = []
 
             for line in particulars_raw:
                 hdr_match = _MEMBER_HEADER_RE.match(line)
                 if hdr_match:
                     current_member = clean_space(hdr_match.group(1)).upper()
-                    current_card_suffix = hdr_match.group(3)
+                    _ = hdr_match.group(3)  # card suffix (reserved for future use)
                     if current_member not in debug["detected_members"]:
                         debug["detected_members"].append(current_member)
                 else:
@@ -414,12 +411,8 @@ def _extract_bob_account_summary(
                 if not row:
                     continue
                 # Check if this looks like the account summary header row
-                joined = " ".join(
-                    str(cell).upper() for cell in row if cell
-                )
-                if (
-                    "OPENING" in joined and "BALANCE" in joined
-                ) or (
+                joined = " ".join(str(cell).upper() for cell in row if cell)
+                if ("OPENING" in joined and "BALANCE" in joined) or (
                     "PAYMENT" in joined and "CREDIT" in joined and "PURCHASE" in joined
                 ):
                     # The data row is the next row
@@ -541,10 +534,17 @@ class BobParser(StatementParser):
         # Fix invalid person labels
         normalize_transaction_persons(transactions, name)
 
-        debit_transactions, credit_transactions = split_by_transaction_type(transactions)
+        debit_transactions, credit_transactions = split_by_transaction_type(
+            transactions
+        )
 
-        debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
-            debit_transactions, credit_transactions
+        # Assign transaction IDs
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
+
+        # Detect adjustment pairs
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, credit_transactions, self.bank
         )
 
         card_summaries, overall_total = build_card_summaries(debit_transactions, name)
@@ -552,10 +552,6 @@ class BobParser(StatementParser):
 
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
-
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
 
         due_date = _extract_bob_due_date(full_text, pages)
         statement_total_amount_due = _extract_bob_total_amount_due(full_text)
@@ -581,9 +577,7 @@ class BobParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             reward_points_balance=reward_points_balance,
             transactions=debit_transactions,

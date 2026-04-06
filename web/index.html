@@ -525,8 +525,20 @@ header {
 }
 
 /* Semantic amount colors */
-.is-credit .col-amount { color: var(--green); }
-.is-debit .col-amount { color: var(--red); }
+.is-credit .col-amount, td.is-credit { color: var(--green); }
+.is-debit .col-amount, td.is-debit { color: var(--red); }
+
+/* Adjustment pair group hover */
+.table-wrap tbody.adj-pair-group:hover tr {
+  background: rgba(46,107,93,.06);
+  transform: translateX(2px);
+}
+@media (prefers-color-scheme: dark) {
+  .table-wrap tbody.adj-pair-group:hover tr { background: rgba(107,184,158,.08); }
+}
+.table-wrap tbody.adj-pair-group + tbody.adj-pair-group tr:first-child td {
+  border-top: 2px solid rgba(128,128,128,.15);
+}
 
 .col-amount,
 .col-points,

@@ -37,10 +37,10 @@ from cc_parser.parsers.narration import (
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     SEPARATOR_TOKENS,
     clean_space,
@@ -86,9 +86,7 @@ def _format_card(raw: str) -> str:
     return digits
 
 
-def _extract_indusind_name(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_indusind_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from IndusInd statement.
 
     IndusInd prints the name with honorific in the member header:
@@ -304,7 +302,9 @@ def _extract_indusind_transactions(
 
                 # "Payment Details" sections contain credits;
                 # "Purchases & Cash Transactions" sections contain debits.
-                is_credit_section = "PAYMENT" in joined_upper and "DETAILS" in joined_upper
+                is_credit_section = (
+                    "PAYMENT" in joined_upper and "DETAILS" in joined_upper
+                )
 
                 parts = name.split()
                 if 2 <= len(parts) <= 5:
@@ -323,9 +323,7 @@ def _extract_indusind_transactions(
             # Skip summary "Total" lines and end the transaction section.
             # Match "Total" followed by an amount or end-of-line to avoid
             # false positives on merchants like "Total Energies".
-            if joined_upper == "TOTAL" or re.match(
-                r"TOTAL\s+\d", joined_upper
-            ):
+            if joined_upper == "TOTAL" or re.match(r"TOTAL\s+\d", joined_upper):
                 in_transaction_section = False
                 continue
 
@@ -397,10 +395,18 @@ def _extract_indusind_transactions(
             # tokens that happen to be purely numeric.
             reward_points: str | None = None
             reward_idx = amount_idx - 1
-            amt_x = float(line_words[amount_idx].get("x0", 0)) if amount_idx < len(line_words) else 0
+            amt_x = (
+                float(line_words[amount_idx].get("x0", 0))
+                if amount_idx < len(line_words)
+                else 0
+            )
             date_x = float(line_words[0].get("x0", 0)) if line_words else 0
             midpoint_x = (date_x + amt_x) / 2
-            reward_candidate_x = float(line_words[reward_idx].get("x0", 0)) if reward_idx < len(line_words) else 0
+            reward_candidate_x = (
+                float(line_words[reward_idx].get("x0", 0))
+                if reward_idx < len(line_words)
+                else 0
+            )
             if (
                 reward_idx > 0
                 and re.fullmatch(r"\d{1,5}", tokens[reward_idx])
@@ -515,7 +521,6 @@ def _find_amount_near_label(
     best_dist = float("inf")
     for w in line_words:
         t = normalize_token(str(w.get("text", "")))
-        raw = t
         if t.upper().endswith(("CR", "DR")) and len(t) > 2:
             t = t[:-2]
         amt = parse_amount_token(t)
@@ -612,9 +617,7 @@ def _extract_indusind_account_summary(
                     payments_credits = amt
 
     if previous_balance or purchases or payments_credits:
-        candidates = [
-            a for a in [previous_balance, purchases, payments_credits] if a
-        ]
+        candidates = [a for a in [previous_balance, purchases, payments_credits] if a]
         return StatementSummary(
             summary_amount_candidates=candidates,
             previous_statement_dues=previous_balance,
@@ -668,8 +671,13 @@ class IndusindParser(StatementParser):
             transactions
         )
 
-        debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
-            debit_transactions, credit_transactions
+        # Assign transaction IDs
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
+
+        # Detect adjustment pairs
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, credit_transactions, self.bank
         )
 
         card_summaries, overall_total = build_card_summaries(debit_transactions, name)
@@ -678,12 +686,10 @@ class IndusindParser(StatementParser):
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
 
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
-
         due_date = _extract_indusind_due_date(full_text, pages)
-        statement_total_amount_due = _extract_indusind_total_amount_due(full_text, pages)
+        statement_total_amount_due = _extract_indusind_total_amount_due(
+            full_text, pages
+        )
         summary_fields = _extract_indusind_account_summary(pages)
         reconciliation = build_reconciliation(
             statement_total_amount_due,
@@ -704,9 +710,7 @@ class IndusindParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             transactions=debit_transactions,
             reconciliation=reconciliation,

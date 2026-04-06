@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import io
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -119,7 +117,7 @@ def test_parse_pdf_returns_expected_keys():
         "bank",
         "transactions",
         "payments_refunds",
-        "adjustments",
+        "possible_adjustment_pairs",
         "card_summaries",
         "overall_total",
         "reconciliation",
@@ -195,7 +193,7 @@ def test_browser_vs_cli_parity():
         "overall_reward_points",
         "transactions",
         "payments_refunds",
-        "adjustments",
+        "possible_adjustment_pairs",
     ):
         assert browser_result[key] == cli_parsed[key], (
             f"Parity mismatch on '{key}': browser={browser_result[key]!r} vs cli={cli_parsed[key]!r}"

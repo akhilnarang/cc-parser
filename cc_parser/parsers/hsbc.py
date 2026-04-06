@@ -33,10 +33,10 @@ from cc_parser.parsers.narration import (
 from cc_parser.parsers.reconciliation import (
     build_card_summaries,
     build_reconciliation,
-    compute_adjustment_totals,
+    detect_adjustment_pairs,
     group_transactions_by_person,
-    split_paired_adjustments,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     SEPARATOR_TOKENS,
@@ -44,7 +44,6 @@ from cc_parser.parsers.tokens import (
     format_amount,
     normalize_amount,
     normalize_token,
-    parse_amount,
     parse_amount_token,
     sum_amounts,
     sum_points,
@@ -64,9 +63,7 @@ _DDMMM_RE = re.compile(r"^(\d{2})([A-Z]{3})$", re.IGNORECASE)
 
 # Regex for HSBC card number pattern: ``NNxx xxxx xxxx NNNN``
 # Lowercase xx's with spaces between groups
-_HSBC_CARD_RE = re.compile(
-    r"\d{2}[xX]{2}\s+[xX]{4}\s+[xX]{4}\s+\d{4}"
-)
+_HSBC_CARD_RE = re.compile(r"\d{2}[xX]{2}\s+[xX]{4}\s+[xX]{4}\s+\d{4}")
 
 
 def _parse_hsbc_date(token: str, year: str) -> str | None:
@@ -124,7 +121,9 @@ def _extract_statement_year(full_text: str) -> str:
     return str(datetime.now().year)
 
 
-def _extract_statement_period_months(full_text: str) -> tuple[str, str, str, str] | None:
+def _extract_statement_period_months(
+    full_text: str,
+) -> tuple[str, str, str, str] | None:
     """Extract start and end month/year from statement period.
 
     Returns (start_month, start_year, end_month, end_year) or None.
@@ -144,7 +143,9 @@ def _extract_statement_period_months(full_text: str) -> tuple[str, str, str, str
     return None
 
 
-def _resolve_year_for_date(month_abbr: str, period_info: tuple[str, str, str, str] | None, default_year: str) -> str:
+def _resolve_year_for_date(
+    month_abbr: str, period_info: tuple[str, str, str, str] | None, default_year: str
+) -> str:
     """Resolve the correct year for a transaction date.
 
     When the statement period spans two years (e.g. DEC 2025 to JAN 2026),
@@ -158,7 +159,6 @@ def _resolve_year_for_date(month_abbr: str, period_info: tuple[str, str, str, st
     # If start and end year differ, assign based on month
     if start_year != end_year:
         start_mm = MONTH_ABBREVS.get(start_month, "00")
-        end_mm = MONTH_ABBREVS.get(end_month, "00")
         txn_mm = MONTH_ABBREVS.get(month_abbr, "00")
 
         if txn_mm >= start_mm:
@@ -194,11 +194,17 @@ def _extract_hsbc_name(full_text: str, pages: list[dict[str, Any]]) -> str | Non
             # Look for card pattern followed by a name
             card_match = _HSBC_CARD_RE.search(joined)
             if card_match:
-                after_card = joined[card_match.end():].strip()
+                after_card = joined[card_match.end() :].strip()
                 if after_card:
                     name_parts = after_card.upper().split()
                     # Strip honorific if present
-                    if name_parts and name_parts[0] in {"MR", "MRS", "MS", "MISS", "DR"}:
+                    if name_parts and name_parts[0] in {
+                        "MR",
+                        "MRS",
+                        "MS",
+                        "MISS",
+                        "DR",
+                    }:
                         name_parts = name_parts[1:]
                     if 2 <= len(name_parts) <= 5 and all(
                         re.fullmatch(r"[A-Z][A-Z.'-]*", p) for p in name_parts
@@ -232,9 +238,7 @@ def _extract_hsbc_card_number(
     return candidates[0] if candidates else None
 
 
-def _extract_hsbc_due_date(
-    full_text: str, pages: list[dict[str, Any]]
-) -> str | None:
+def _extract_hsbc_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract due date from HSBC statement (``DD MMM YYYY`` format)."""
     # Line-level search
     for page in pages[:2]:
@@ -246,24 +250,21 @@ def _extract_hsbc_due_date(
                 continue
 
             # Look for DD MMM YYYY on same line
-            date_match = re.search(
-                r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})", joined
-            )
+            date_match = re.search(r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})", joined)
             if date_match:
                 month = MONTH_ABBREVS.get(date_match.group(2))
                 if month:
-                    return f"{date_match.group(1).zfill(2)}/{month}/{date_match.group(3)}"
+                    return (
+                        f"{date_match.group(1).zfill(2)}/{month}/{date_match.group(3)}"
+                    )
 
             # Check next line
             if i + 1 < len(lines):
                 next_tokens = [
-                    normalize_token(str(w.get("text", "")))
-                    for w in lines[i + 1]
+                    normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                 ]
                 next_joined = clean_space(" ".join(next_tokens)).upper()
-                date_match = re.search(
-                    r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})", next_joined
-                )
+                date_match = re.search(r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})", next_joined)
                 if date_match:
                     month = MONTH_ABBREVS.get(date_match.group(2))
                     if month:
@@ -299,9 +300,7 @@ def _extract_hsbc_due_date(
         for line_words in lines[:15]:  # only scan top of page
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             joined = clean_space(" ".join(tokens)).upper()
-            date_match = re.search(
-                r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})", joined
-            )
+            date_match = re.search(r"(\d{1,2})\s+([A-Z]{3})\s+(\d{4})", joined)
             if date_match:
                 candidate = clean_space(date_match.group(0)).upper()
                 if candidate not in period_dates:
@@ -345,7 +344,6 @@ def _extract_hsbc_total_amount_due(
             if "TOTAL PAYMENT DUE" in joined or "NET OUTSTANDING BALANCE" in joined:
                 # Look for amount on same line
                 for t in reversed(tokens):
-                    raw_t = t
                     if t.upper().endswith(("CR", "DR")) and len(t) > 2:
                         t = t[:-2]
                     amt = parse_amount_token(t)
@@ -357,7 +355,9 @@ def _extract_hsbc_total_amount_due(
 
                 # Check next line
                 if i + 1 < len(lines):
-                    next_tokens = [normalize_token(str(w.get("text", ""))) for w in lines[i + 1]]
+                    next_tokens = [
+                        normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
+                    ]
                     for t in next_tokens:
                         if t.upper().endswith(("CR", "DR")) and len(t) > 2:
                             t = t[:-2]
@@ -421,11 +421,17 @@ def _extract_hsbc_transactions(
             card_match = _HSBC_CARD_RE.search(clean_space(" ".join(tokens)))
             if card_match:
                 current_card = _normalize_hsbc_card(card_match.group(0))
-                after_card = clean_space(" ".join(tokens))[card_match.end():].strip()
+                after_card = clean_space(" ".join(tokens))[card_match.end() :].strip()
                 if after_card:
                     name_parts = after_card.upper().split()
                     # Strip honorific if present
-                    if name_parts and name_parts[0] in {"MR", "MRS", "MS", "MISS", "DR"}:
+                    if name_parts and name_parts[0] in {
+                        "MR",
+                        "MRS",
+                        "MS",
+                        "MISS",
+                        "DR",
+                    }:
                         name_parts = name_parts[1:]
                     if 2 <= len(name_parts) <= 5 and all(
                         re.fullmatch(r"[A-Z][A-Z.'-]*", p) for p in name_parts
@@ -492,9 +498,7 @@ def _extract_hsbc_transactions(
             # narration/amount may have been split to the next visual line
             # due to slight y-offset in the PDF layout.  Merge the next
             # line's tokens into the current one.
-            has_amount = any(
-                parse_amount_token(t) is not None for t in tokens[1:]
-            )
+            has_amount = any(parse_amount_token(t) is not None for t in tokens[1:])
             if not has_amount and line_index + 1 < len(lines):
                 next_line_words = lines[line_index + 1]
                 next_tokens = [
@@ -502,7 +506,10 @@ def _extract_hsbc_transactions(
                     for item in next_line_words
                 ]
                 # Only merge if the next line does NOT start with a DDMMM date
-                if next_tokens and _parse_hsbc_date(next_tokens[0], statement_year) is None:
+                if (
+                    next_tokens
+                    and _parse_hsbc_date(next_tokens[0], statement_year) is None
+                ):
                     tokens = tokens + next_tokens
                     # Re-compute joined_upper with merged tokens
                     joined_upper = clean_space(" ".join(tokens)).upper()
@@ -511,7 +518,9 @@ def _extract_hsbc_transactions(
             ddmmm_match = _DDMMM_RE.fullmatch(tokens[0].strip())
             if ddmmm_match:
                 month_abbr = ddmmm_match.group(2).upper()
-                resolved_year = _resolve_year_for_date(month_abbr, period_info, statement_year)
+                resolved_year = _resolve_year_for_date(
+                    month_abbr, period_info, statement_year
+                )
                 date_value = _parse_hsbc_date(tokens[0], resolved_year)
 
             date_lines.append(
@@ -616,7 +625,7 @@ def _extract_hsbc_transactions(
 
             transactions.append(
                 Transaction(
-                    date=date_value,
+                    date=date_value or "",
                     narration=narration,
                     amount=normalize_amount(amount_value),
                     card_number=current_card,
@@ -705,14 +714,22 @@ def _extract_hsbc_account_summary(
                         opening_balance = normalize_amount(amt)
                         break
 
-            if "PURCHASE" in joined_upper and "CHARGE" in joined_upper and purchases is None:
+            if (
+                "PURCHASE" in joined_upper
+                and "CHARGE" in joined_upper
+                and purchases is None
+            ):
                 for t in reversed(tokens):
                     amt = parse_amount_token(t)
                     if amt:
                         purchases = normalize_amount(amt)
                         break
 
-            if "PAYMENT" in joined_upper and "CREDIT" in joined_upper and payments_credits is None:
+            if (
+                "PAYMENT" in joined_upper
+                and "CREDIT" in joined_upper
+                and payments_credits is None
+            ):
                 for t in reversed(tokens):
                     amt = parse_amount_token(t)
                     if amt:
@@ -720,9 +737,7 @@ def _extract_hsbc_account_summary(
                         break
 
     if opening_balance or purchases or payments_credits:
-        candidates = [
-            a for a in [opening_balance, purchases, payments_credits] if a
-        ]
+        candidates = [a for a in [opening_balance, purchases, payments_credits] if a]
         return StatementSummary(
             summary_amount_candidates=candidates,
             previous_statement_dues=opening_balance,
@@ -758,7 +773,9 @@ def _extract_hsbc_reward_points(
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             joined_upper = clean_space(" ".join(tokens)).upper()
 
-            if "REWARD" in joined_upper and ("EARNED" in joined_upper or "POINT" in joined_upper):
+            if "REWARD" in joined_upper and (
+                "EARNED" in joined_upper or "POINT" in joined_upper
+            ):
                 for offset in range(1, 5):
                     idx = i + offset
                     if idx >= len(lines):
@@ -847,8 +864,13 @@ class HsbcParser(StatementParser):
             transactions
         )
 
-        debit_transactions, credit_transactions, adjustments = split_paired_adjustments(
-            debit_transactions, credit_transactions
+        # Assign transaction IDs
+        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
+        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
+
+        # Detect adjustment pairs
+        adjustment_pairs = detect_adjustment_pairs(
+            debit_transactions, credit_transactions, self.bank
         )
 
         card_summaries, overall_total = build_card_summaries(debit_transactions, name)
@@ -864,10 +886,6 @@ class HsbcParser(StatementParser):
             else sum_points(debit_transactions)
         )
         reward_points_balance = closing_points
-
-        adjustments_debit_total, adjustments_credit_total = compute_adjustment_totals(
-            adjustments
-        )
 
         due_date = _extract_hsbc_due_date(full_text, pages)
         statement_total_amount_due = _extract_hsbc_total_amount_due(full_text, pages)
@@ -891,9 +909,7 @@ class HsbcParser(StatementParser):
             person_groups=person_groups,
             payments_refunds=credit_transactions,
             payments_refunds_total=format_amount(credit_total),
-            adjustments=adjustments,
-            adjustments_debit_total=adjustments_debit_total,
-            adjustments_credit_total=adjustments_credit_total,
+            possible_adjustment_pairs=adjustment_pairs,
             overall_reward_points=str(int(overall_reward_points)),
             reward_points_balance=reward_points_balance,
             transactions=debit_transactions,
@@ -907,9 +923,7 @@ class HsbcParser(StatementParser):
             txn_debug = self._last_txn_debug
             transactions = self._last_transactions
         else:
-            full_text = "\n".join(
-                str(page.get("text", "")) for page in pages
-            )
+            full_text = "\n".join(str(page.get("text", "")) for page in pages)
             statement_year = _extract_statement_year(full_text)
             period_info = _extract_statement_period_months(full_text)
             transactions, txn_debug = _extract_hsbc_transactions(

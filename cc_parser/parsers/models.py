@@ -19,8 +19,32 @@ class Transaction(BaseModel):
     person: str | None = None
     transaction_type: Literal["debit", "credit"] = "debit"
     credit_reasons: str | None = None
-    adjustment_side: str | None = None
-    adjustment_reason: str | None = None
+    transaction_id: str = ""
+
+
+class AdjustmentPair(BaseModel):
+    """A detected debit/credit pair representing a refund or reversal."""
+
+    pair_id: str
+    debit_transaction_id: str | None
+    credit_transaction_id: str | None
+    debit: Transaction | None
+    credit: Transaction | None
+    score: int
+    confidence: Literal["high", "medium", "low"]
+    kind: Literal[
+        "exact_refund",
+        "partial_refund",
+        "possible_refund",
+        "reversal",
+        "credit_balance_refund",
+    ]
+    amount_delta: str
+    amount_delta_percent: str | None = None
+    date_gap_days: int | None = None
+    merchant_similarity: float | None = None
+    narration_similarity: float | None = None
+    reasons: list[str] = Field(default_factory=list)
 
 
 class StatementSummary(BaseModel):
@@ -90,16 +114,15 @@ class ParsedStatement(BaseModel):
     person_groups: list[PersonGroup]
     payments_refunds: list[Transaction]
     payments_refunds_total: str
-    adjustments: list[Transaction]
-    adjustments_debit_total: str
-    adjustments_credit_total: str
     overall_reward_points: str
     reward_points_balance: str | None = None
     transactions: list[Transaction]
     reconciliation: Reconciliation
+    possible_adjustment_pairs: list[AdjustmentPair] = Field(default_factory=list)
 
 
 __all__ = [
+    "AdjustmentPair",
     "CardSummary",
     "ParsedStatement",
     "PersonGroup",

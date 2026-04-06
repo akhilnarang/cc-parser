@@ -221,7 +221,7 @@ def is_invalid_person_label(value: str | None) -> bool:
 
 
 def normalize_transaction_persons(
-    transactions: list[Transaction], fallback_name: str
+    transactions: list[Transaction], fallback_name: str | None
 ) -> None:
     """Replace invalid person labels on transactions with a fallback name.
 

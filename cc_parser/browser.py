@@ -98,7 +98,7 @@ def parse_pdf(
     pdf_bytes: bytes,
     filename: str = "statement.pdf",
     password: str | None = None,
-    bank: str = "auto",
+    bank: BankChoice = "auto",
 ) -> dict[str, Any]:
     """Parse a credit card statement PDF and return structured output.
 

@@ -74,7 +74,6 @@ def write_transactions_csv(parsed: ParsedStatement, output_path: Path) -> None:
         "file",
         "source",
         "transaction_type",
-        "adjustment_side",
         "person",
         "card_number",
         "date",
@@ -96,11 +95,8 @@ def write_transactions_csv(parsed: ParsedStatement, output_path: Path) -> None:
         amount_text = str(txn.amount or "0")
         amount_decimal = parse_amount(amount_text)
         txn_type = str(txn.transaction_type or "")
-        adj_side = str(txn.adjustment_side or "")
 
-        is_credit = (
-            source == "payments_refunds" or adj_side == "credit" or txn_type == "credit"
-        )
+        is_credit = source == "payments_refunds" or txn_type == "credit"
         signed = -amount_decimal if is_credit else amount_decimal
         spend_amount = amount_decimal if source == "transactions" else parse_amount("0")
         credit_amount = amount_decimal if is_credit else parse_amount("0")
@@ -111,7 +107,6 @@ def write_transactions_csv(parsed: ParsedStatement, output_path: Path) -> None:
                 "file": file_name,
                 "source": source,
                 "transaction_type": txn_type,
-                "adjustment_side": adj_side,
                 "person": str(txn.person or ""),
                 "card_number": str(txn.card_number or ""),
                 "date": str(txn.date or ""),
@@ -130,8 +125,6 @@ def write_transactions_csv(parsed: ParsedStatement, output_path: Path) -> None:
         add_row("transactions", txn)
     for txn in parsed.payments_refunds:
         add_row("payments_refunds", txn)
-    for txn in parsed.adjustments:
-        add_row("adjustments", txn)
 
     with output_path.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -157,9 +150,7 @@ def print_compact_table(output_data: ParsedStatement) -> None:
     person_groups = output_data.person_groups
     payments_refunds = output_data.payments_refunds
     payments_refunds_total = output_data.payments_refunds_total or "0.00"
-    adjustments = output_data.adjustments
-    adjustments_debit_total = output_data.adjustments_debit_total or "0.00"
-    adjustments_credit_total = output_data.adjustments_credit_total or "0.00"
+    adjustment_pairs = output_data.possible_adjustment_pairs
     card_summaries = output_data.card_summaries
     overall_total = output_data.overall_total or "0.00"
     overall_reward_points = output_data.overall_reward_points or "0"
@@ -192,25 +183,26 @@ def print_compact_table(output_data: ParsedStatement) -> None:
         console.print(credit_table)
         console.print(f"Payments/Refunds Total: {payments_refunds_total}")
 
-    if adjustments:
-        adj_table = Table(title="Adjustments (Offsetting Debit/Credit Pairs)")
-        adj_table.add_column("Date", style="cyan", no_wrap=True)
-        adj_table.add_column("Side", style="yellow", no_wrap=True)
-        adj_table.add_column("Person", style="white", no_wrap=True)
-        adj_table.add_column("Narration", style="white")
-        adj_table.add_column("Amount", justify="right", style="magenta")
-        for txn in adjustments:
+    if adjustment_pairs:
+        adj_table = Table(title="Adjustment Pairs (Refunds / Reversals)")
+        adj_table.add_column("Kind", style="yellow", no_wrap=True)
+        adj_table.add_column("Confidence", style="cyan", no_wrap=True)
+        adj_table.add_column("Score", justify="right", style="green")
+        adj_table.add_column("Debit", style="white")
+        adj_table.add_column("Credit", style="white")
+        adj_table.add_column("Delta", justify="right", style="magenta")
+        for pair in adjustment_pairs:
+            debit_desc = str(pair.debit.narration or "") if pair.debit else "-"
+            credit_desc = str(pair.credit.narration or "") if pair.credit else "-"
             adj_table.add_row(
-                str(txn.date or ""),
-                str(txn.adjustment_side or ""),
-                str(txn.person or ""),
-                str(txn.narration or ""),
-                str(txn.amount or ""),
+                pair.kind,
+                pair.confidence,
+                str(pair.score),
+                debit_desc,
+                credit_desc,
+                pair.amount_delta,
             )
         console.print(adj_table)
-        console.print(
-            f"Adjustments totals -> Debits: {adjustments_debit_total} | Credits: {adjustments_credit_total}"
-        )
 
     if person_groups:
         for group in person_groups:

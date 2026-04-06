@@ -621,7 +621,7 @@ async function renderLibrary() {
 
 function exportAllCSV(stmts) {
   const fields = [
-    "bank", "file", "source", "transaction_type", "adjustment_side",
+    "bank", "file", "source", "transaction_type",
     "person", "card_number", "date", "time", "narration", "reward_points",
     "amount", "amount_numeric", "signed_amount", "spend_amount", "credit_amount",
   ];
@@ -631,12 +631,11 @@ function exportAllCSV(stmts) {
     const d = s.data;
     function addRow(source, txn) {
       const amount = parseFloat(String(txn.amount || "0").replace(/,/g, "")) || 0;
-      const adjSide = txn.adjustment_side || "";
       const txnType = txn.transaction_type || "";
-      const isCredit = source === "payments_refunds" || adjSide === "credit" || txnType === "credit";
+      const isCredit = source === "payments_refunds" || txnType === "credit";
       rows.push({
         bank: d.bank || "", file: d.file || "", source,
-        transaction_type: txnType, adjustment_side: adjSide,
+        transaction_type: txnType,
         person: txn.person || "", card_number: txn.card_number || "",
         date: txn.date || "", time: txn.time || "",
         narration: txn.narration || "", reward_points: txn.reward_points || "",
@@ -649,7 +648,6 @@ function exportAllCSV(stmts) {
     }
     (d.transactions || []).forEach((t) => addRow("transactions", t));
     (d.payments_refunds || []).forEach((t) => addRow("payments_refunds", t));
-    (d.adjustments || []).forEach((t) => addRow("adjustments", t));
   }
 
   let csv = fields.join(",") + "\n";
@@ -916,26 +914,39 @@ function renderResults(d) {
     html += `<div class="table-group-total">Total: ${d.payments_refunds_total || "0.00"}</div>`;
   }
 
-  // Adjustments
-  if (d.adjustments && d.adjustments.length) {
-    html += tableSection(
-      "Adjustments",
-      d.adjustments.length,
-      ["Date", "Side", "Person", "Narration", "Amount"],
-      d.adjustments.map((t) => {
-        const row = [
-          { v: t.date, c: "col-date" },
-          { v: t.adjustment_side || "" },
-          { v: t.person || "" },
-          { v: t.narration, c: "col-narration" },
-          { v: t.amount, c: "col-amount" },
-        ];
-        if (t.adjustment_side === "credit") row.rowClass = "is-credit";
-        else if (t.adjustment_side === "debit") row.rowClass = "is-debit";
-        return row;
-      }),
-    );
-    html += `<div class="table-group-total">Debits: ${d.adjustments_debit_total || "0.00"} &middot; Credits: ${d.adjustments_credit_total || "0.00"}</div>`;
+  // Adjustment Pairs (two-row layout)
+  const adjPairs = d.possible_adjustment_pairs || [];
+  if (adjPairs.length) {
+    html += `<div class="table-section">`;
+    html += `<h3 class="table-title">${esc("Adjustment Pairs")} <span class="badge">${adjPairs.length}</span></h3>`;
+    html += `<div class="table-wrap"><table><thead><tr>`;
+    html += `<th>Kind</th><th>Confidence</th><th>Date</th><th>Side</th><th class="col-amount">Amount</th><th>Narration</th><th class="col-amount">Delta</th>`;
+    html += `</tr></thead>`;
+    for (const p of adjPairs) {
+      const hasCr = p.credit != null;
+      const rs = hasCr ? ' rowspan="2"' : "";
+      const confCls = p.confidence === "high" ? "is-credit" : p.confidence === "low" ? "is-debit" : "";
+      html += `<tbody class="adj-pair-group">`;
+      html += `<tr>`;
+      html += `<td${rs}>${esc(p.kind || "")}</td>`;
+      html += `<td${rs} class="${confCls}">${esc(p.confidence || "")}</td>`;
+      html += `<td class="col-date">${esc(p.debit ? p.debit.date : "—")}</td>`;
+      html += `<td class="is-debit">debit</td>`;
+      html += `<td class="col-amount is-debit">${p.debit ? "₹" + esc(p.debit.amount) : "—"}</td>`;
+      html += `<td class="col-narration">${esc(p.debit ? p.debit.narration : "—")}</td>`;
+      html += `<td${rs} class="col-amount">${"₹" + esc(p.amount_delta || "0.00")}</td>`;
+      html += `</tr>`;
+      if (hasCr) {
+        html += `<tr>`;
+        html += `<td class="col-date">${esc(p.credit.date)}</td>`;
+        html += `<td class="is-credit">credit</td>`;
+        html += `<td class="col-amount is-credit">₹${esc(p.credit.amount)}</td>`;
+        html += `<td class="col-narration">${esc(p.credit.narration)}</td>`;
+        html += `</tr>`;
+      }
+      html += `</tbody>`;
+    }
+    html += `</table></div></div>`;
   }
 
   // Transactions by person group
@@ -1154,7 +1165,7 @@ function exportCSV() {
   if (!lastResult) return;
   const d = lastResult;
   const fields = [
-    "bank", "file", "source", "transaction_type", "adjustment_side",
+    "bank", "file", "source", "transaction_type",
     "person", "card_number", "date", "time", "narration", "reward_points",
     "amount", "amount_numeric", "signed_amount", "spend_amount", "credit_amount",
   ];
@@ -1163,9 +1174,8 @@ function exportCSV() {
 
   function addRow(source, txn) {
     const amount = parseFloat(String(txn.amount || "0").replace(/,/g, "")) || 0;
-    const adjSide = txn.adjustment_side || "";
     const txnType = txn.transaction_type || "";
-    const isCredit = source === "payments_refunds" || adjSide === "credit" || txnType === "credit";
+    const isCredit = source === "payments_refunds" || txnType === "credit";
     const signed = isCredit ? -amount : amount;
     const spend = source === "transactions" ? amount : 0;
     const credit = isCredit ? amount : 0;
@@ -1175,7 +1185,6 @@ function exportCSV() {
       file: d.file || "",
       source,
       transaction_type: txnType,
-      adjustment_side: adjSide,
       person: txn.person || "",
       card_number: txn.card_number || "",
       date: txn.date || "",
@@ -1192,7 +1201,6 @@ function exportCSV() {
 
   (d.transactions || []).forEach((t) => addRow("transactions", t));
   (d.payments_refunds || []).forEach((t) => addRow("payments_refunds", t));
-  (d.adjustments || []).forEach((t) => addRow("adjustments", t));
 
   let csv = fields.join(",") + "\n";
   for (const row of rows) {
