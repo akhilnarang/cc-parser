@@ -207,6 +207,18 @@ def _extract_idfc_due_date(full_text: str, pages: list[dict[str, Any]]) -> str |
     return None
 
 
+def _line_has_cr_marker(tokens: list[str]) -> bool:
+    """Check whether any token on the line is a CR (credit balance) marker.
+
+    Handles standalone ``CR`` as well as PDF artifacts like ``CR(cid:9)``.
+    """
+    for t in tokens:
+        upper = t.upper().strip()
+        if upper == "CR" or upper.startswith("CR("):
+            return True
+    return False
+
+
 def _extract_idfc_total_amount_due(
     full_text: str, pages: list[dict[str, Any]]
 ) -> str | None:
@@ -216,6 +228,10 @@ def _extract_idfc_total_amount_due(
     - Wealth: ``Total Amount Due = r310.80 DR`` (inline equation)
     - Mayura: Header row ``Minimum Amount Due | Total Amount Due | Payment Due Date``
               with values on the next line, matched by x-position.
+
+    When the amount is followed by a ``CR`` marker the statement has a credit
+    balance (customer is owed money) — returned as a negative amount so that
+    reconciliation arithmetic works correctly.
     """
     # Line-level: find the summary header row with both "Minimum" and "Total"
     # and use x-position of "Total" column to pick the right value.
@@ -241,6 +257,11 @@ def _extract_idfc_total_amount_due(
                         break
 
                 if total_x is not None and i + 1 < len(lines):
+                    next_line_tokens = [
+                        normalize_token(str(w.get("text", "")))
+                        for w in lines[i + 1]
+                    ]
+                    is_credit = _line_has_cr_marker(next_line_tokens)
                     # Find the amount token on the next line closest to total_x
                     best_amt: str | None = None
                     best_dist = float("inf")
@@ -254,7 +275,8 @@ def _extract_idfc_total_amount_due(
                                 best_dist = dist
                                 best_amt = amt
                     if best_amt:
-                        return normalize_amount(best_amt)
+                        result = normalize_amount(best_amt)
+                        return "-" + result if is_credit else result
 
             # Header row with "Total Amount Due" but not "Minimum" (e.g. Wealth)
             if "TOTAL AMOUNT DUE" in joined and "MINIMUM AMOUNT DUE" not in joined:
@@ -262,20 +284,25 @@ def _extract_idfc_total_amount_due(
                     next_tokens = [
                         normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                     ]
+                    is_credit = _line_has_cr_marker(next_tokens)
                     for t in next_tokens:
                         stripped = _strip_rupee_prefix(t)
                         amt = parse_amount_token(stripped)
                         if amt:
-                            return normalize_amount(amt)
+                            result = normalize_amount(amt)
+                            return "-" + result if is_credit else result
 
     # Fallback: "Total Amount Due = rXXX" inline equation
     match = re.search(
-        r"Total\s+Amount\s+Due\s*=\s*r?([\d,]+\.\d{2})",
+        r"Total\s+Amount\s+Due\s*=\s*r?([\d,]+\.\d{2})\s*(CR|DR)?",
         full_text,
         flags=re.IGNORECASE,
     )
     if match:
-        return normalize_amount(match.group(1))
+        result = normalize_amount(match.group(1))
+        if match.group(2) and match.group(2).upper() == "CR":
+            return "-" + result
+        return result
 
     return None
 
@@ -356,7 +383,7 @@ def _extract_idfc_transactions(
                     amount_idx = i
                     break
 
-            if amount_idx == -1 or amount_idx <= date_tokens_consumed:
+            if amount_idx == -1:
                 rejected_date_lines.append(
                     {
                         "page": page_number,
@@ -412,6 +439,7 @@ def _extract_idfc_transactions(
                     and t not in {"+", "l", "I", "CR", "DR"}
                     and parse_amount_token(_strip_rupee_prefix(t)) is None
                     and parse_multi_token_date([t, "", ""], 0)[0] is None
+                    and not re.fullmatch(r"<\d+/\d+>", t)
                 ]
                 narration = clean_space(" ".join([*narration_tokens, *ctx_tokens]))
 
@@ -553,6 +581,9 @@ def _extract_idfc_account_summary(
                     if amt:
                         opening_balance = normalize_amount(amt)
                         break
+                # CR marker means the opening balance is a credit (overpayment)
+                if opening_balance and _line_has_cr_marker(tokens):
+                    opening_balance = "-" + opening_balance
 
             if joined_upper.startswith("PURCHASES") and purchases is None:
                 for t in tokens:

@@ -169,6 +169,11 @@ def looks_like_member_header(tokens: list[str]) -> str | None:
             return None
         if value in SEPARATOR_TOKENS:
             continue
+        # Person name tokens contain only letters, dots, hyphens,
+        # apostrophes and spaces.  Anything else (*, digits, commas)
+        # indicates a merchant/narration line, not a member header.
+        if re.search(r"[^A-Za-z .'\-]", value):
+            return None
         letters = re.sub(r"[^A-Za-z ]", "", value).strip()
         if not letters:
             return None

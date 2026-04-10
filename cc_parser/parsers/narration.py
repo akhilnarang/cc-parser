@@ -9,6 +9,7 @@ from cc_parser.parsers.tokens import (
     normalize_token,
     parse_amount_token,
     parse_date_token,
+    parse_multi_token_date,
 )
 from cc_parser.parsers.cards import looks_like_member_header
 
@@ -121,6 +122,12 @@ def normalize_merchant_name(narration: str, bank: str | None = None) -> str:
     return text.strip()
 
 
+def _is_page_marker(tokens: list[str]) -> bool:
+    """Return True for page number markers like ``<2/3>``."""
+    joined = clean_space(" ".join(tokens)).strip()
+    return bool(re.fullmatch(r"<\d+/\d+>", joined))
+
+
 def _is_noise_context_line(tokens: list[str]) -> bool:
     """Return True for obvious non-transaction helper/footer lines."""
     joined_upper = clean_space(" ".join(tokens)).upper()
@@ -159,7 +166,11 @@ def collect_row_context_tokens(
         tokens = [token for token in tokens if token]
         if not tokens:
             continue
+        if _is_page_marker(tokens):
+            continue
         if any(parse_date_token(token) for token in tokens):
+            break
+        if parse_multi_token_date(tokens, 0)[0] is not None:
             break
         if looks_like_member_header(tokens):
             break
@@ -175,7 +186,11 @@ def collect_row_context_tokens(
         tokens = [token for token in tokens if token]
         if not tokens:
             continue
+        if _is_page_marker(tokens):
+            continue
         if any(parse_date_token(token) for token in tokens):
+            break
+        if parse_multi_token_date(tokens, 0)[0] is not None:
             break
         if looks_like_member_header(tokens):
             break
