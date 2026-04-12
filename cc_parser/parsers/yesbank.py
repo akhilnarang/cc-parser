@@ -47,7 +47,6 @@ from cc_parser.parsers.tokens import (
     format_amount,
     normalize_amount,
     normalize_token,
-    parse_amount,
     parse_amount_token,
     parse_date_token,
     sum_amounts,
@@ -55,7 +54,7 @@ from cc_parser.parsers.tokens import (
 )
 
 # Known YES BANK merchant category names that appear between narration and amount.
-# These are included in the narration for completeness.
+# These are recognized so they can be separated from the final narration text.
 _MERCHANT_CATEGORIES = {
     "RETAIL OUTLET SERVICES",
     "CLOTHING STORES",
@@ -198,7 +197,6 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                     # Multi-letter words and single letters with height >= 7.5
                     # are name parts; smaller-height tokens are address digits.
                     name_tokens: list[str] = []
-                    multi_letter_words: list[str] = []
                     for scan_idx in range(max(0, i - 4), min(len(lines), i + 3)):
                         scan_line = lines[scan_idx]
                         for w in scan_line:
@@ -212,8 +210,6 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                             ):
                                 upper = text.upper()
                                 name_tokens.append(upper)
-                                if len(upper) > 1:
-                                    multi_letter_words.append(upper)
 
                     if len(name_tokens) >= 2:
                         # Reconstruct words from mixed tokens.
@@ -278,14 +274,15 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
         flags=re.IGNORECASE,
     )
     if email_match:
-        email_local = email_match.group(1).upper()
-        name_part = re.sub(r"XXX+$", "", email_local)
+        email_local = email_match.group(1)
+        name_part = re.sub(r"XXX+$", "", email_local, flags=re.IGNORECASE)
         name_part = re.sub(r"\d+$", "", name_part)
         name_part = re.sub(r"[._]", " ", name_part)
         name_part = re.sub(r"([a-z])([A-Z])", r"\1 \2", name_part)
-        parts = name_part.strip().split()
+        name_part = name_part.strip().upper()
+        parts = name_part.split()
         if 2 <= len(parts) <= 5:
-            return name_part.strip().upper()
+            return name_part
 
     return None
 
@@ -559,7 +556,6 @@ def _extract_yesbank_transactions(
     """
     transactions: list[Transaction] = []
     current_card: str | None = None
-    current_member: str | None = None
     date_lines: list[dict[str, Any]] = []
     rejected_date_lines: list[dict[str, Any]] = []
     in_transaction_section = False
@@ -654,7 +650,6 @@ def _extract_yesbank_transactions(
                     "page": page_number,
                     "line_index": line_index,
                     "tokens": tokens,
-                    "current_member": current_member,
                     "current_card": current_card,
                 }
             )
@@ -730,6 +725,15 @@ def _extract_yesbank_transactions(
                     and parse_date_token(t) is None
                 ]
                 narration_text = clean_space(" ".join([*narration_tokens, *ctx_tokens]))
+                # Re-apply merchant category and Dr/Cr stripping since
+                # the merge rebuilds from raw tokens that haven't been cleaned.
+                for cat in _MERCHANT_CATEGORIES:
+                    if narration_text.upper().endswith(cat):
+                        narration_text = narration_text[: -len(cat)].strip()
+                        break
+                narration_text = re.sub(
+                    r"\s+(Dr|Cr|DR|CR)\s*$", "", narration_text, flags=re.IGNORECASE
+                ).strip()
 
             if not narration_text:
                 continuation = extract_continuation_narration(lines, line_index)
@@ -772,7 +776,7 @@ def _extract_yesbank_transactions(
                     narration=narration_text,
                     amount=normalize_amount(amount_value),
                     card_number=current_card,
-                    person=current_member,
+                    person=None,
                     transaction_type="credit" if is_credit else "debit",
                     credit_reasons=credit_reason,
                 )
