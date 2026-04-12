@@ -19,6 +19,8 @@ from cc_parser.parsers.indusind import IndusindParser
 from cc_parser.parsers.jupiter import JupiterParser
 from cc_parser.parsers.sbi import SbiParser
 from cc_parser.parsers.slice import SliceParser
+from cc_parser.parsers.ssfb import SsfbParser
+from cc_parser.parsers.yesbank import YesbankParser
 
 type BankChoice = Literal[
     "auto",
@@ -31,7 +33,9 @@ type BankChoice = Literal[
     "axis",
     "jupiter",
     "slice",
+    "ssfb",
     "bob",
+    "yesbank",
     "generic",
 ]
 
@@ -43,7 +47,7 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         raw_data: Raw extraction payload.
 
     Returns:
-        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `bob`, or `generic`.
+        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, or `generic`.
     """
     pages = raw_data.get("pages", [])
     page_texts = []
@@ -86,8 +90,20 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         return "idfc"
     if "SLICE" in joined or "SLICE" in file_name:
         return "slice"
+    if (
+        "SURYODAY SMALL FINANCE BANK" in joined
+        or "SURYODAY SFB" in joined
+        or "SSFB RUPAY" in joined
+        or "SSFB" in file_name
+        or "SURYODAY" in file_name
+    ):
+        return "ssfb"
     if "BOBCARD" in joined or "BOBCARD" in file_name:
         return "bob"
+    # Check YES BANK before generic — YES BANK statements contain
+    # "YES BANK" prominently in the header.
+    if "YES BANK" in joined or "YESBANK" in file_name:
+        return "yesbank"
     return "generic"
 
 
@@ -121,7 +137,11 @@ def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
             return JupiterParser()
         case "slice":
             return SliceParser()
+        case "ssfb":
+            return SsfbParser()
         case "bob":
             return BobParser()
+        case "yesbank":
+            return YesbankParser()
         case _:
             return GenericParser()

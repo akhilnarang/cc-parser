@@ -51,6 +51,12 @@ Primary goals:
 - `cc_parser/parsers/idfc.py`
   - IDFC FIRST Bank extraction (DD Mon YY dates, DR/CR markers, r-prefixed amounts, statement summary).
 
+- `cc_parser/parsers/ssfb.py`
+  - Suryoday SFB extraction (page-1 bounded summary parsing, DD-Mon-YYYY normalization, MITC/example-page isolation).
+
+- `cc_parser/parsers/yesbank.py`
+  - YES BANK extraction (statement-details bounded transaction parsing, Dr/Cr markers, summary-row rejection).
+
 ## Parser Contract
 
 All parsers must implement `StatementParser.parse(raw_data)` and return the same compact shape.
