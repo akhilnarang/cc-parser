@@ -119,7 +119,7 @@ def _extract_summary(first_page_text: str) -> StatementSummary:
 
     block1 = re.search(
         r"Opening\s*\+\s*Purchases\s*\+\s*Fees\s*,Adjustments\s*\+\s*Cash\s+Advance\s*\+\s*"
-        r"\nBalance\s*&\s*Other\s+Charges\s*\n([^\n]+)",
+        r"\s+Balance\s*&\s*Other\s+Charges\s*\n([^\n]+)",
         first_page_text,
         flags=re.IGNORECASE,
     )
@@ -183,7 +183,10 @@ class SsfbParser(StatementParser):
         statement_total_amount_due = _extract_total_amount_due(first_page_text)
         summary_fields = _extract_summary(first_page_text)
 
-        # SSFB sample statements may not contain a transaction table in extracted text.
+        # NOTE: SSFB sample statements may not contain a transaction table in
+        # extracted text. Currently transactions are hardcoded to [] and
+        # reconciliation relies solely on summary totals. When transaction
+        # extraction is implemented, remove this and populate from parsing.
         transactions: list[Transaction] = []
 
         normalize_transaction_persons(transactions, name)

@@ -25,7 +25,7 @@ def test_list_banks_returns_all_options():
     assert "icici" in banks
     assert "generic" in banks
     assert "bob" in banks
-    assert len(banks) == 12
+    assert len(banks) == 14
 
 
 # ---------------------------------------------------------------------------

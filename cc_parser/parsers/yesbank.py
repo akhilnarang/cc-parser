@@ -119,6 +119,56 @@ _SUMMARY_LINE_KEYWORDS = {
 }
 
 
+# Words that are address parts, not name parts, used by _extract_yesbank_name.
+_EXCLUDED_WORDS = {
+    "CLICK",
+    "HERE",
+    "TO",
+    "UPDATE",
+    "YOUR",
+    "NAME",
+    "ADDRESS",
+    "AND",
+    "OR",
+    "MOBILE",
+    "EMAIL",
+    "THE",
+    "FILLED",
+    "FORM",
+    "DOCUMENT",
+    "DOWNLOAD",
+    "KLICK",
+    "BANK",
+    "YES",
+    "REGISTERED",
+    "NUMBER",
+    "ID",
+    "LANE",
+    "ROAD",
+    "STREET",
+    "COLONY",
+    "NAGAR",
+    "PUR",
+    "PURAM",
+    "VIHAR",
+    "SECTOR",
+    "BLOCK",
+    "HOUSE",
+    "FLAT",
+    "APARTMENT",
+    "PLOT",
+    "KYC",
+    "SAMBALPUR",
+    "MUMBAI",
+    "DELHI",
+    "BENGALURU",
+    "CHENNAI",
+    "KOLKATA",
+    "HYDERABAD",
+    "PUNE",
+}
+
+
 def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from YES BANK statement.
 
@@ -131,55 +181,6 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
        letters and as a complete word on the next line.
     2. Email-based: derive name from the registered email address.
     """
-    # Words that are address parts, not name parts.
-    _EXCLUDED_WORDS = {
-        "CLICK",
-        "HERE",
-        "TO",
-        "UPDATE",
-        "YOUR",
-        "NAME",
-        "ADDRESS",
-        "AND",
-        "OR",
-        "MOBILE",
-        "EMAIL",
-        "THE",
-        "FILLED",
-        "FORM",
-        "DOCUMENT",
-        "DOWNLOAD",
-        "KLICK",
-        "BANK",
-        "YES",
-        "REGISTERED",
-        "NUMBER",
-        "ID",
-        "LANE",
-        "ROAD",
-        "STREET",
-        "COLONY",
-        "NAGAR",
-        "PUR",
-        "PURAM",
-        "VIHAR",
-        "SECTOR",
-        "BLOCK",
-        "HOUSE",
-        "FLAT",
-        "APARTMENT",
-        "PLOT",
-        "KYC",
-        "SAMBALPUR",
-        "MUMBAI",
-        "DELHI",
-        "BENGALURU",
-        "CHENNAI",
-        "KOLKATA",
-        "HYDERABAD",
-        "PUNE",
-    }
-
     # Approach 1: word-level extraction from first page.
     # YES BANK can print the name as individual letters interleaved with
     # address digits on one line, and also repeat parts of the name as a
@@ -221,7 +222,7 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                         # - Runs of single letters are appended to the previous
                         #   base word, unless they duplicate the next base word.
                         # - Repeated consecutive words are deduplicated.
-                        words: list[str] = []
+                        name_parts: list[str] = []
                         single_run = ""
 
                         for idx, tok in enumerate(name_tokens):
@@ -230,7 +231,7 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                                 continue
 
                             if single_run:
-                                if words:
+                                if name_parts:
                                     if single_run == tok:
                                         # Same word already arriving as full token.
                                         pass
@@ -239,24 +240,24 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                                         # suffix duplicates current token.
                                         prefix = single_run[: -len(tok)]
                                         if prefix:
-                                            words[-1] = words[-1] + prefix
+                                            name_parts[-1] = name_parts[-1] + prefix
                                     else:
-                                        words[-1] = words[-1] + single_run
+                                        name_parts[-1] = name_parts[-1] + single_run
                                 else:
-                                    words.append(single_run)
+                                    name_parts.append(single_run)
                                 single_run = ""
 
-                            words.append(tok)
+                            name_parts.append(tok)
 
                         if single_run:
-                            if words:
-                                words[-1] = words[-1] + single_run
+                            if name_parts:
+                                name_parts[-1] = name_parts[-1] + single_run
                             else:
-                                words.append(single_run)
+                                name_parts.append(single_run)
 
                         # Deduplicate repeated consecutive parts.
                         deduped: list[str] = []
-                        for part in words:
+                        for part in name_parts:
                             if not deduped or deduped[-1] != part:
                                 deduped.append(part)
 
@@ -289,6 +290,13 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
     return None
 
 
+def _format_card_number(raw: str) -> str:
+    """Pad a masked card number to 16 chars and format as ``XXXX XXXX XXXX XXXX``."""
+    if len(raw) < 16:
+        raw = "X" * (16 - len(raw)) + raw
+    return f"{raw[:4]} {raw[4:8]} {raw[8:12]} {raw[12:]}"
+
+
 def _extract_yesbank_card_number(
     full_text: str, pages: list[dict[str, Any]]
 ) -> str | None:
@@ -305,10 +313,7 @@ def _extract_yesbank_card_number(
     if match:
         raw = match.group(1).replace(" ", "").upper()
         if len(raw) >= 12:
-            # Pad to 16 chars
-            if len(raw) < 16:
-                raw = "X" * (16 - len(raw)) + raw
-            return f"{raw[:4]} {raw[4:8]} {raw[8:12]} {raw[12:]}"
+            return _format_card_number(raw)
 
     # Word-level: look for "Card Number" then find the number token
     for page in pages[:2]:
@@ -324,9 +329,7 @@ def _extract_yesbank_card_number(
                         "X" in normalized or "*" in normalized
                     ):
                         raw = normalized.replace("*", "X")
-                        if len(raw) < 16:
-                            raw = "X" * (16 - len(raw)) + raw
-                        return f"{raw[:4]} {raw[4:8]} {raw[8:12]} {raw[12:]}"
+                        return _format_card_number(raw)
 
     # Fallback: generic card detection
     candidates = find_card_candidates(full_text)
@@ -449,6 +452,9 @@ def _extract_yesbank_summary(
             previous_balance = "-" + previous_balance
 
     # Current Purchases / Cash Advance & Other Charges
+    # The (Dr|Cr) group is captured but intentionally ignored: per YES BANK
+    # statement layout, this field is always a debit (Dr), so the marker
+    # carries no additional information beyond confirming the sign.
     match = re.search(
         r"Current\s+Purchases\s*/\s*Cash\s+Advance\s*&\s*Other\s+Charges\s*:\s*"
         r"Rs\.?\s*([\d,]+\.\d{2})\s*(Dr|Cr)?",
@@ -459,6 +465,9 @@ def _extract_yesbank_summary(
         purchases_debit = normalize_amount(match.group(1))
 
     # Payment & Credits Received
+    # The (Dr|Cr) group is captured but intentionally ignored: per YES BANK
+    # statement layout, this field is always a credit (Cr), so the marker
+    # carries no additional information beyond confirming the sign.
     match = re.search(
         r"Payment\s+&\s+Credits\s+Received\s*:\s*Rs\.?\s*([\d,]+\.\d{2})\s*(Dr|Cr)?",
         full_text,
@@ -483,7 +492,7 @@ def _extract_yesbank_summary(
                             normalize_token(str(w.get("text", "")))
                             for w in lines[i + 1]
                         ]
-                    is_credit = any(t.upper() in {"CR", "C"} for t in search_tokens)
+                    is_credit = any(t.upper() in {"CR"} for t in search_tokens)
                     for token in search_tokens:
                         amt = parse_amount_token(token)
                         if amt and not previous_balance:
@@ -516,7 +525,7 @@ def _extract_yesbank_summary(
                             normalize_token(str(w.get("text", "")))
                             for w in lines[i + 1]
                         ]
-                    is_credit = any(t.upper() in {"CR", "C"} for t in search_tokens)
+                    is_credit = any(t.upper() in {"CR"} for t in search_tokens)
                     for token in search_tokens:
                         amt = parse_amount_token(token)
                         if amt and not payments_credits_received:
@@ -553,8 +562,6 @@ def _extract_yesbank_transactions(
     current_member: str | None = None
     date_lines: list[dict[str, Any]] = []
     rejected_date_lines: list[dict[str, Any]] = []
-    detected_members: list[dict[str, Any]] = []
-
     in_transaction_section = False
 
     for page in pages:
@@ -620,9 +627,7 @@ def _extract_yesbank_transactions(
                 )
                 if card_match:
                     raw = card_match.group(1).replace(" ", "")
-                    if len(raw) < 16:
-                        raw = "X" * (16 - len(raw)) + raw
-                    current_card = f"{raw[:4]} {raw[4:8]} {raw[8:12]} {raw[12:]}"
+                    current_card = _format_card_number(raw)
                 continue
 
             # Try to parse date at the start of the line
@@ -674,14 +679,14 @@ def _extract_yesbank_transactions(
 
             # Determine credit/debit from the last token (Dr/Cr)
             last_token = tokens[-1].upper() if tokens else ""
-            is_credit = last_token in {"CR", "C"}
+            is_credit = last_token == "CR"
 
             # Also check if the token just before the amount is Dr/Cr
             # (in case amount is not the last token)
             if not is_credit and amount_idx + 1 < len(tokens):
                 next_after_amount = tokens[amount_idx + 1].upper()
-                if next_after_amount in {"DR", "D", "CR", "C"}:
-                    is_credit = next_after_amount in {"CR", "C"}
+                if next_after_amount in {"DR", "CR"}:
+                    is_credit = next_after_amount == "CR"
 
             # Narration is everything between date and amount
             cursor = date_idx + 1
@@ -776,7 +781,6 @@ def _extract_yesbank_transactions(
     debug = {
         "date_lines": date_lines,
         "rejected_date_lines": rejected_date_lines,
-        "detected_members": detected_members,
     }
     return transactions, debug
 
@@ -889,12 +893,10 @@ class YesbankParser(StatementParser):
                 ),
                 "date_lines_seen": len(txn_debug["date_lines"]),
                 "date_lines_rejected": len(txn_debug["rejected_date_lines"]),
-                "member_headers_detected": len(txn_debug["detected_members"]),
             },
             "card_from_filename": extract_card_from_filename(
                 str(raw_data.get("file", ""))
             ),
-            "detected_members": txn_debug["detected_members"],
             "date_lines": txn_debug["date_lines"],
             "rejected_date_lines": txn_debug["rejected_date_lines"],
         }
