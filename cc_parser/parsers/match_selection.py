@@ -37,7 +37,7 @@ def select_best_non_overlapping_pairs(
         # Parse amount_delta for comparison
         try:
             delta = abs(float(pair.amount_delta.replace(",", "")))
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             delta = 999999.0
 
         # Parse date_gap

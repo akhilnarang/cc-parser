@@ -1,71 +1,55 @@
 """Generic statement parser.
 
 This module provides the ``GenericParser`` implementation used as the
-default (and base class for bank-specific profiles).  The heavy-lifting
+default (and base class for bank-specific profiles). The heavy-lifting
 helpers now live in dedicated sibling modules:
 
-- ``tokens``        – regex constants, token parsing, amount/point helpers
-- ``cards``         – card number detection, masking, member-header logic
-- ``narration``     – narration cleaning, merging, enrichment
-- ``extraction``    – line reconstruction, transaction extraction
-- ``reconciliation``– summary extraction, reconciliation, grouping
+- ``tokens``             – regex constants, token parsing, amount/point helpers
+- ``cards``              – card number detection, masking, member-header logic
+- ``narration``          – narration cleaning, merging, enrichment
+- ``extraction``         – line reconstruction, transaction extraction
+- ``summary``            – due date / totals / grouping / reconciliation helpers
+- ``adjustment_pairing`` – refund and reversal detection helpers
 """
 
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
-from cc_parser.parsers.models import ParsedStatement, Transaction
-
-# Re-export public helpers so existing callers (icici.py, cli.py, etc.)
-# that import from ``generic`` keep working.
-from cc_parser.parsers.tokens import (  # noqa: F401
-    clean_space,
-    format_amount,
-    normalize_amount,
-    normalize_token,
-    parse_amount_token,
-    parse_date_token,
-    parse_points,
-    parse_time_token,
-    sum_amounts,
-    sum_points,
-)
-from cc_parser.parsers.cards import (  # noqa: F401
+from cc_parser.parsers.cards import (
     extract_card_from_filename,
-    extract_card_from_line,
     extract_card_number,
     find_card_candidates,
-    is_invalid_person_label,
-    looks_like_card_token,
-    looks_like_member_header,
-    mask_card_token,
-    normalize_card_token,
     normalize_transaction_persons,
     split_by_transaction_type,
 )
-from cc_parser.parsers.narration import (  # noqa: F401
-    clean_narration_artifacts,
-    collect_row_context_tokens,
-    enrich_reference_only_narration,
-    extract_continuation_narration,
-    needs_context_merge,
+from cc_parser.parsers.extraction import (
+    _extract_transactions_with_debug as _extract_transactions_with_debug_impl,
 )
-from cc_parser.parsers.extraction import (  # noqa: F401
+from cc_parser.parsers.extraction import (
     classify_credit_transaction,
-    extract_transactions,
     group_words_into_lines,
-    _extract_transactions_with_debug,
 )
-from cc_parser.parsers.reconciliation import (  # noqa: F401
+from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
+from cc_parser.parsers.summary import (
     build_card_summaries,
     build_reconciliation,
-    detect_adjustment_pairs,
     extract_due_date,
     extract_due_date_from_pages,
     extract_name,
     extract_statement_summary,
     extract_total_amount_due,
     group_transactions_by_person,
+)
+from cc_parser.parsers.tokens import (
+    clean_space,
+    format_amount,
+    normalize_amount,
+    normalize_token,
+    parse_amount_token,
+    parse_date,
+    sum_amounts,
+    sum_points,
 )
 from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
@@ -79,37 +63,87 @@ class GenericParser(StatementParser):
         self._last_txn_debug: dict[str, Any] | None = None
         self._last_transactions: list[Transaction] | None = None
 
+    def _extract_name(self, full_text: str, pages: list[dict[str, Any]]) -> str | None:
+        return extract_name(full_text)
+
+    def _extract_card_number(
+        self, full_text: str, pages: list[dict[str, Any]], file_name: str
+    ) -> str | None:
+        return extract_card_number(full_text) or extract_card_from_filename(file_name)
+
+    def _extract_transactions_with_debug(
+        self, pages: list[dict[str, Any]]
+    ) -> tuple[list[Transaction], dict[str, Any]]:
+        return _extract_transactions_with_debug_impl(pages)
+
+    def _normalize_transactions(
+        self,
+        transactions: list[Transaction],
+        name: str | None,
+        card_number: str | None,
+    ) -> None:
+        if card_number:
+            for txn in transactions:
+                if not txn.card_number:
+                    txn.card_number = card_number
+        normalize_transaction_persons(transactions, name)
+
+    def _extract_due_date(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> str | None:
+        return extract_due_date(full_text) or extract_due_date_from_pages(pages)
+
+    def _extract_total_amount_due(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> str | None:
+        return extract_total_amount_due(full_text)
+
+    def _extract_summary(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> StatementSummary:
+        return extract_statement_summary(full_text)
+
+    def _extract_transaction_lines(
+        self, words: list[dict[str, Any]]
+    ) -> list[list[dict[str, Any]]]:
+        return group_words_into_lines(words)
+
+    def _parse_date(
+        self, token: str, context: dict[str, Any] | None = None
+    ) -> str | None:
+        return parse_date(token)
+
+    def _parse_amount(
+        self, token: str, context: dict[str, Any] | None = None
+    ) -> str | None:
+        parsed = parse_amount_token(token)
+        return normalize_amount(parsed) if parsed else None
+
+    def _classify_credit_debit(
+        self, tokens: list[str], context: dict[str, Any] | None = None
+    ) -> tuple[bool, list[str]]:
+        return classify_credit_transaction(tokens)
+
     def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Normalize raw extractor payload into compact statement output."""
-        full_text = "\n".join(
-            str(page.get("text", "")) for page in raw_data.get("pages", [])
-        )
-        name = extract_name(full_text)
-        transactions, txn_debug = _extract_transactions_with_debug(
-            raw_data.get("pages", [])
-        )
+        pages = raw_data.get("pages", [])
+        full_text = "\n".join(str(page.get("text", "")) for page in pages)
+        name = self._extract_name(full_text, pages)
+        transactions, txn_debug = self._extract_transactions_with_debug(pages)
         self._last_txn_debug = txn_debug
         self._last_transactions = transactions
 
-        detected_card = extract_card_number(full_text) or extract_card_from_filename(
-            str(raw_data["file"])
+        detected_card = self._extract_card_number(
+            full_text, pages, str(raw_data["file"])
         )
-        if detected_card:
-            for txn in transactions:
-                if not txn.card_number:
-                    txn.card_number = detected_card
-
-        normalize_transaction_persons(transactions, name)
+        self._normalize_transactions(transactions, name, detected_card)
 
         debit_transactions, credit_transactions = split_by_transaction_type(
             transactions
         )
-
-        # Assign transaction IDs
         debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
         credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
 
-        # Detect adjustment pairs
         adjustment_pairs = detect_adjustment_pairs(
             debit_transactions, credit_transactions, self.bank
         )
@@ -120,11 +154,9 @@ class GenericParser(StatementParser):
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
 
-        due_date = extract_due_date(full_text) or extract_due_date_from_pages(
-            raw_data.get("pages", [])
-        )
-        statement_total_amount_due = extract_total_amount_due(full_text)
-        summary_fields = extract_statement_summary(full_text)
+        due_date = self._extract_due_date(full_text, pages)
+        statement_total_amount_due = self._extract_total_amount_due(full_text, pages)
+        summary_fields = self._extract_summary(full_text, pages)
         reconciliation = build_reconciliation(
             statement_total_amount_due,
             debit_transactions,
@@ -151,18 +183,14 @@ class GenericParser(StatementParser):
         )
 
     def build_debug(self, raw_data: dict[str, Any]) -> dict[str, Any]:
-        """Build detailed parser diagnostics for troubleshooting mode.
-
-        Reuses cached transaction debug from the last ``parse()`` call
-        when available, avoiding a redundant re-parse.
-        """
+        """Build detailed parser diagnostics for troubleshooting mode."""
         pages = raw_data.get("pages", [])
 
         if self._last_txn_debug is not None and self._last_transactions is not None:
             txn_debug = self._last_txn_debug
             transactions = self._last_transactions
         else:
-            transactions, txn_debug = _extract_transactions_with_debug(pages)
+            transactions, txn_debug = self._extract_transactions_with_debug(pages)
 
         interesting_lines: list[dict[str, Any]] = []
         section_markers: list[dict[str, Any]] = []
@@ -174,7 +202,7 @@ class GenericParser(StatementParser):
             for card in find_card_candidates(text):
                 card_candidates.append({"page": page_number, "card": card})
 
-            lines = group_words_into_lines(page.get("words") or [])
+            lines = self._extract_transaction_lines(page.get("words") or [])
             for idx, line_words in enumerate(lines[:800]):
                 tokens = [
                     normalize_token(str(item.get("text", ""))) for item in line_words
@@ -183,7 +211,7 @@ class GenericParser(StatementParser):
                 if not joined:
                     continue
 
-                has_date = any(parse_date_token(token) for token in tokens)
+                has_date = any(self._parse_date(token) for token in tokens)
                 has_mask = any("X" in token.upper() or "*" in token for token in tokens)
                 if has_date or has_mask:
                     interesting_lines.append(

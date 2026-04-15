@@ -18,7 +18,7 @@ print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))
 fi
 
 rm -rf "$DIST"
-mkdir -p "$DIST/cc_parser/parsers"
+mkdir -p "$DIST/cc_parser"
 
 # Copy web assets
 cp "$ROOT/web/index.html" "$ROOT/web/app.js" "$ROOT/web/storage.js" "$DIST/"
@@ -30,7 +30,8 @@ sed -e 's|\.\./cc_parser|./cc_parser|g' \
 
 # Copy only the Python files the browser path needs (no cli.py, no extractor.py)
 cp "$ROOT/cc_parser/__init__.py" "$ROOT/cc_parser/browser.py" "$DIST/cc_parser/"
-cp "$ROOT/cc_parser/parsers/"*.py "$DIST/cc_parser/parsers/"
+cp -r "$ROOT/cc_parser/parsers" "$DIST/cc_parser/"
+find "$DIST/cc_parser" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 # Generate manifest of all .py files for the Pyodide worker
 (cd "$DIST/cc_parser" && find . -name '*.py' | sed 's|^\./||' | sort | python3 -c "

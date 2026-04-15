@@ -9,6 +9,7 @@ dependencies = [
     "pydantic>=2.0",
     "pymupdf>=1.26.7",
     "pypdf>=6.7.0",
+    "python-dateutil>=2.9.0",
     "rich>=14.2.0",
     "typer>=0.16.0",
 ]

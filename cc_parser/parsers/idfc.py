@@ -30,12 +30,12 @@ from cc_parser.parsers.narration import (
     extract_continuation_narration,
     needs_context_merge,
 )
-from cc_parser.parsers.reconciliation import (
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
+from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
-    build_reconciliation,
-    detect_adjustment_pairs,
     group_transactions_by_person,
 )
+from cc_parser.parsers.summary.reconciliation import build_reconciliation
 from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
@@ -258,8 +258,7 @@ def _extract_idfc_total_amount_due(
 
                 if total_x is not None and i + 1 < len(lines):
                     next_line_tokens = [
-                        normalize_token(str(w.get("text", "")))
-                        for w in lines[i + 1]
+                        normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
                     ]
                     is_credit = _line_has_cr_marker(next_line_tokens)
                     # Find the amount token on the next line closest to total_x

@@ -5,7 +5,7 @@ This document explains the statement structures the parser handles and the norma
 ## Scope
 
 - Input: password-protected or plain PDF credit card statements.
-- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `generic`.
+- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `generic`.
 - Output: normalized JSON for transactions, totals, and reconciliation.
 
 Privacy handling:
@@ -46,6 +46,13 @@ Key top-level fields in compact output:
 - `reward_points_balance` (cumulative balance, when available)
 - `reconciliation`
 
+## Parser Layout
+
+- `cc_parser/parsers/registry.py` keeps the stable ordered parser registry used by factory/browser surfaces.
+- `cc_parser/parsers/generic.py` is the shared base; migrate banks by overriding only the stages that differ.
+- `cc_parser/parsers/summary/` holds name, due-date, total-due, grouping, and reconciliation helpers.
+- `cc_parser/parsers/adjustment_pairing/` is the single source of truth for refund candidate generation, scoring, and constants. Import directly from this subpackage — no top-level shims exist.
+
 ## Transaction Parsing Strategy
 
 1. Extract words with coordinates from each page.
@@ -82,6 +89,14 @@ When previous balance exists and credits cover it, the reconciliation also repor
 
 This is meant for auditing parser behavior and identifying edge cases.
 
+## Date Handling
+
+- Shared date normalization now lives in `cc_parser/parsers/tokens.py` and is backed by `python-dateutil`.
+- Output dates remain the downstream contract: `DD/MM/YYYY`.
+- Custom parsers should prefer `parse_date()` / `parse_multi_token_date()` plus narrow parser overrides rather than rolling their own `strptime` helpers.
+
 ## Design Rule
 
 Parsing logic avoids dependence on account-specific values and does not require embedding any real statement content.
+
+The canonical profile list lives in `cc_parser/parsers/registry.py`; `factory.py` owns auto-detection, while the registry owns the stable user-facing bank list.

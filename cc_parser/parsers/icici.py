@@ -10,7 +10,7 @@ from typing import Any
 from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.models import ParsedStatement
 from cc_parser.parsers.tokens import format_amount, sum_amounts
-from cc_parser.parsers.reconciliation import (
+from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )

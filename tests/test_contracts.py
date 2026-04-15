@@ -8,9 +8,10 @@ from unittest.mock import patch
 
 from cc_parser.cli import BankOption
 from cc_parser.extractor import extract_raw_pdf
-from cc_parser.parsers.factory import detect_bank, get_parser
+from cc_parser.parsers.factory import detect_bank, get_parser, list_bank_choices
 from cc_parser.parsers.models import ParsedStatement
-from cc_parser.parsers.reconciliation import (
+from cc_parser.parsers.registry import PARSER_REGISTRY
+from cc_parser.parsers.summary.totals import (
     extract_due_date,
     extract_due_date_from_pages,
 )
@@ -50,6 +51,19 @@ class DueDateContractTests(unittest.TestCase):
 
 class SurfaceAreaTests(unittest.TestCase):
     """Verify CLI/parser exposure stays aligned."""
+
+    def test_bank_surface_stays_in_sync(self) -> None:
+        """BankOption, list_bank_choices(), and PARSER_REGISTRY must agree.
+
+        Adding a bank means editing three places (registry, CLI enum, and
+        anywhere a Literal lists slugs). This test catches drift immediately.
+        """
+        registry_slugs = list(PARSER_REGISTRY.keys())
+        enum_slugs = [member.value for member in BankOption]
+        choice_slugs = list_bank_choices()
+
+        self.assertEqual(enum_slugs, ["auto", *registry_slugs])
+        self.assertEqual(choice_slugs, ["auto", *registry_slugs])
 
     def test_bank_option_exposes_slice(self) -> None:
         self.assertEqual(BankOption.slice.value, "slice")

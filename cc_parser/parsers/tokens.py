@@ -6,12 +6,37 @@ other atomic tokens extracted from PDF word lists.
 
 from __future__ import annotations
 
-import re
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
+import re
 from typing import TYPE_CHECKING
+
+from dateutil import parser as date_parser
+from dateutil.parser import parserinfo
 
 if TYPE_CHECKING:
     from cc_parser.parsers.models import Transaction
+
+
+class _StatementParserInfo(parserinfo):
+    """Dateutil parser info with stable 2000-based two-digit year handling."""
+
+    def convertyear(self, year: int, century_specified: bool = False) -> int:
+        if century_specified or year >= 100:
+            return year
+        return 2000 + year
+
+
+@dataclass(frozen=True, slots=True)
+class DateParseHints:
+    """Optional date parsing hints for non-standard statement formats."""
+
+    dayfirst: bool = True
+    yearfirst: bool = False
+    fuzzy: bool = False
+    parser_info: parserinfo | None = None
+
 
 DATE_RE = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 MONTH_ABBREVS = {
@@ -32,6 +57,8 @@ TIME_RE = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
 AMOUNT_RE = re.compile(r"[-+]?\d[\d,]*\.\d{2}")
 HONORIFIC_RE = re.compile(r"^(MR|MRS|MS|MISS|DR)\.?$", re.IGNORECASE)
 SEPARATOR_TOKENS = {"|", "||", ":", "-", "--"}
+_DEFAULT_DATE_HINTS = DateParseHints()
+_DEFAULT_PARSER_INFO = _StatementParserInfo(dayfirst=True, yearfirst=False)
 
 
 def clean_space(value: str) -> str:
@@ -46,50 +73,69 @@ def normalize_token(token: str) -> str:
     return value
 
 
+def parse_date_value(
+    value: str | None, hints: DateParseHints | None = None
+) -> date | None:
+    """Parse a statement date and return a ``date`` object when successful."""
+    if not value:
+        return None
+
+    cleaned = clean_space(normalize_token(value))
+    if not cleaned:
+        return None
+
+    if DATE_RE.fullmatch(cleaned):
+        day, month, year = cleaned.split("/")
+        try:
+            return date(int(year), int(month), int(day))
+        except ValueError:
+            return None
+
+    active_hints = hints or _DEFAULT_DATE_HINTS
+    parser_info = active_hints.parser_info or _DEFAULT_PARSER_INFO
+    try:
+        parsed = date_parser.parse(
+            cleaned,
+            dayfirst=active_hints.dayfirst,
+            yearfirst=active_hints.yearfirst,
+            fuzzy=active_hints.fuzzy,
+            parserinfo=parser_info,
+        )
+    except ValueError, OverflowError, TypeError:
+        return None
+    return parsed.date()
+
+
+def parse_date(token: str, hints: DateParseHints | None = None) -> str | None:
+    """Parse a statement date, returning ``DD/MM/YYYY`` or None."""
+    parsed = parse_date_value(token, hints)
+    if parsed is None:
+        return None
+    return parsed.strftime("%d/%m/%Y")
+
+
 def parse_date_token(token: str) -> str | None:
-    """Parse a statement date token, returning ``DD/MM/YYYY`` or None."""
+    """Parse a strict transaction-date token, returning ``DD/MM/YYYY`` or None."""
     value = normalize_token(token)
-    return value if DATE_RE.fullmatch(value) else None
+    if DATE_RE.fullmatch(value):
+        return parse_date(value)
+    return None
 
 
-def parse_multi_token_date(tokens: list[str], start: int) -> tuple[str | None, int]:
-    """Parse a ``DD Mon YY`` date spread across three tokens.
-
-    Args:
-        tokens: Token list from a visual line.
-        start: Index to start parsing from.
-
-    Returns:
-        ``(date_str, tokens_consumed)`` where *date_str* is ``DD/MM/YYYY``,
-        or ``(None, 0)`` on failure.
-    """
+def parse_multi_token_date(
+    tokens: list[str], start: int, hints: DateParseHints | None = None
+) -> tuple[str | None, int]:
+    """Parse a multi-token date spread across three tokens."""
     if start + 2 >= len(tokens):
         return None, 0
-    day = normalize_token(tokens[start])
-    month_tok = normalize_token(tokens[start + 1])
-    year_tok = normalize_token(tokens[start + 2])
-
-    if not re.fullmatch(r"\d{1,2}", day):
-        return None, 0
-    month = MONTH_ABBREVS.get(month_tok.upper())
-    if month is None:
-        return None, 0
-    if not re.fullmatch(r"\d{2,4}", year_tok):
-        return None, 0
-
-    day_padded = day.zfill(2)
-    year = year_tok if len(year_tok) == 4 else f"20{year_tok}"
-    return f"{day_padded}/{month}/{year}", 3
+    raw = " ".join(normalize_token(tokens[idx]) for idx in range(start, start + 3))
+    parsed = parse_date(raw, hints)
+    return (parsed, 3) if parsed else (None, 0)
 
 
 def normalize_date_long(raw: str) -> str:
-    """Convert ``DD Mon YYYY`` (e.g. ``08 Nov 2025``) to ``DD/MM/YYYY``."""
-    parts = clean_space(raw).split()
-    if len(parts) == 3:
-        month = MONTH_ABBREVS.get(parts[1].upper()[:3])
-        if month:
-            return f"{parts[0].zfill(2)}/{month}/{parts[2]}"
-    return raw
+    """Convert long-form statement dates to ``DD/MM/YYYY`` when possible."""
+    return parse_date(raw) or raw
 
 
 def parse_time_token(token: str) -> str | None:
@@ -152,23 +198,26 @@ def sum_points(transactions: list[Transaction]) -> Decimal:
 
 
 __all__ = [
-    "DATE_RE",
-    "TIME_RE",
     "AMOUNT_RE",
+    "DATE_RE",
+    "DateParseHints",
     "HONORIFIC_RE",
     "MONTH_ABBREVS",
     "SEPARATOR_TOKENS",
+    "TIME_RE",
     "clean_space",
-    "normalize_token",
-    "parse_date_token",
-    "parse_multi_token_date",
-    "normalize_date_long",
-    "parse_time_token",
-    "parse_amount_token",
-    "normalize_amount",
-    "parse_amount",
-    "parse_points",
     "format_amount",
+    "normalize_amount",
+    "normalize_date_long",
+    "normalize_token",
+    "parse_amount",
+    "parse_amount_token",
+    "parse_date",
+    "parse_date_token",
+    "parse_date_value",
+    "parse_multi_token_date",
+    "parse_points",
+    "parse_time_token",
     "sum_amounts",
     "sum_points",
 ]

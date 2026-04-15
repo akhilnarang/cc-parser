@@ -54,7 +54,7 @@ async function initPyodide() {
   // we never call page.to_image()).
   await pyodide.runPythonAsync(`
 import micropip
-await micropip.install(["pypdf", "pdfminer.six"])
+await micropip.install(["pypdf", "pdfminer.six", "python-dateutil"])
 await micropip.install("pdfplumber", deps=False)
 `);
 

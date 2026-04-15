@@ -1,43 +1,27 @@
 """Parser selection utilities.
 
-`detect_bank` uses simple text/file-name heuristics.
-`get_parser` returns the parser implementation for the selected bank.
+`detect_bank` keeps the existing heuristic ordering because several issuers
+mention other banks in fine print. In particular: IndusInd must be checked
+before ICICI (`ICICI Lombard` appears on some IndusInd statements), `AXIS
+BANK` should be more specific than bare `AXIS`, and HSBC / Jupiter must be
+detected before SBI.
+
+`get_parser` keeps auto-detection in this module, but parser instantiation and
+user-facing bank ordering now come from `registry.py`.
 """
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
-from cc_parser.parsers.axis import AxisParser
 from cc_parser.parsers.base import StatementParser
-from cc_parser.parsers.bob import BobParser
-from cc_parser.parsers.generic import GenericParser
-from cc_parser.parsers.hdfc import HdfcParser
-from cc_parser.parsers.hsbc import HsbcParser
-from cc_parser.parsers.icici import IciciParser
-from cc_parser.parsers.idfc import IdfcParser
-from cc_parser.parsers.indusind import IndusindParser
-from cc_parser.parsers.jupiter import JupiterParser
-from cc_parser.parsers.sbi import SbiParser
-from cc_parser.parsers.slice import SliceParser
-from cc_parser.parsers.ssfb import SsfbParser
-from cc_parser.parsers.yesbank import YesbankParser
+from cc_parser.parsers.registry import PARSER_REGISTRY, list_registered_banks
 
-type BankChoice = Literal[
-    "auto",
-    "icici",
-    "hdfc",
-    "sbi",
-    "idfc",
-    "indusind",
-    "hsbc",
-    "axis",
-    "jupiter",
-    "slice",
-    "ssfb",
-    "bob",
-    "yesbank",
-    "generic",
-]
+type BankChoice = str
+
+
+def list_bank_choices() -> list[str]:
+    """Return stable user-facing bank choices, including `auto`."""
+    return list_registered_banks(include_auto=True)
 
 
 def detect_bank(raw_data: dict[str, Any]) -> str:
@@ -118,30 +102,5 @@ def get_parser(choice: BankChoice, raw_data: dict[str, Any]) -> StatementParser:
         Parser implementation instance for the selected bank.
     """
     effective = detect_bank(raw_data) if choice == "auto" else choice
-    match effective:
-        case "icici":
-            return IciciParser()
-        case "hdfc":
-            return HdfcParser()
-        case "sbi":
-            return SbiParser()
-        case "idfc":
-            return IdfcParser()
-        case "indusind":
-            return IndusindParser()
-        case "hsbc":
-            return HsbcParser()
-        case "axis":
-            return AxisParser()
-        case "jupiter":
-            return JupiterParser()
-        case "slice":
-            return SliceParser()
-        case "ssfb":
-            return SsfbParser()
-        case "bob":
-            return BobParser()
-        case "yesbank":
-            return YesbankParser()
-        case _:
-            return GenericParser()
+    parser_cls = PARSER_REGISTRY.get(effective, PARSER_REGISTRY["generic"])
+    return parser_cls()

@@ -1,3 +1,5 @@
+"""Parser package exports."""
+
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.factory import detect_bank, get_parser
 from cc_parser.parsers.generic import GenericParser
@@ -11,20 +13,22 @@ from cc_parser.parsers.models import (
     StatementSummary,
     Transaction,
 )
+from cc_parser.parsers.registry import PARSER_REGISTRY
 from cc_parser.parsers.sbi import SbiParser
 
 __all__ = [
-    "StatementParser",
-    "GenericParser",
-    "IciciParser",
-    "HdfcParser",
-    "SbiParser",
-    "detect_bank",
-    "get_parser",
     "CardSummary",
+    "GenericParser",
+    "HdfcParser",
+    "IciciParser",
+    "PARSER_REGISTRY",
     "ParsedStatement",
     "PersonGroup",
     "Reconciliation",
+    "SbiParser",
+    "StatementParser",
     "StatementSummary",
     "Transaction",
+    "detect_bank",
+    "get_parser",
 ]

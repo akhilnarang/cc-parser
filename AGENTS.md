@@ -30,8 +30,15 @@ Primary goals:
 - `cc_parser/parsers/base.py`
   - `StatementParser` interface.
 
+- `cc_parser/parsers/registry.py`
+  - ordered parser registry used by CLI/browser surfaces and factory instantiation.
+
 - `cc_parser/parsers/factory.py`
-  - bank detection and parser dispatch.
+  - bank detection heuristics and dispatch,
+  - detection order comments are part of the compatibility contract.
+
+- `cc_parser/parsers/registry.py`
+  - canonical parser registry used by the CLI/browser/factory.
 
 - `cc_parser/parsers/generic.py`
   - shared parsing pipeline,
@@ -110,14 +117,17 @@ Do not use static examples or account-specific labels.
 
 When modifying parser logic:
 
-1. Keep bank-specific behavior in bank parser modules.
-2. Preserve output schema compatibility.
-3. Validate with `-vvv` output and inspect `debug` deltas.
-4. Update docs (`README.md`, `docs/parsing-notes.md`) when behavior changes.
-5. Ensure code compiles (`uv run python -m py_compile ...`).
+1. Default to extending `GenericParser`; override only the stages that differ (`_extract_transactions_with_debug`, `_extract_summary`, `_extract_due_date`, `_extract_total_amount_due`, `_extract_card_number`, `_extract_name`, or the lower-level parsing hooks).
+2. Register parser classes in `cc_parser/parsers/registry.py` and keep `factory.py` detection order comments accurate.
+3. Preserve output schema compatibility.
+4. Date outputs must stay `DD/MM/YYYY`; use `cc_parser/parsers/tokens.py` dateutil-backed helpers instead of ad hoc `strptime` logic.
+5. Validate with `uv run cc-parser ... -vvv` and inspect `debug` deltas.
+6. Update docs (`README.md`, `docs/parsing-notes.md`, `.agents/skills/add-bank-parser/SKILL.md`) when behavior changes.
+7. Ensure code compiles (`uv run python -m py_compile ...`).
 
 ## Coding Conventions
 
+- This repo targets Python 3.14; PEP 758 parenthesis-free `except E1, E2:` syntax is allowed here — do not rewrite it just for style.
 - Use typed Python signatures.
 - Add docstrings with `Args` and `Returns` for non-trivial functions.
 - Prefer pure helper functions for parsing steps.
@@ -136,6 +146,8 @@ When modifying parser logic:
 - **Date format is DD/MM/YYYY**: `bank-email-fetcher` parses with `strptime(date, "%d/%m/%Y")`.
 - **Amount strings are comma-separated**: Expects `"25,000.00"`, strips commas to convert to Decimal.
 - **Detection order matters**: In `factory.py`, IndusInd before ICICI, HSBC/Jupiter before SBI. Wrong order causes misclassification.
+- **Registry order matters too**: CLI/browser bank lists come from `parsers/registry.py`; keep that order stable unless you intentionally change user-facing surfaces and tests.
+- **Pyodide package changes are coupled**: if parser imports need new pure-Python deps, update both `pyproject.toml` and `web/worker.js`.
 
 ## Known limitations
 

@@ -72,7 +72,7 @@ Parser selection (default: `auto`):
 uv run cc-parser /path/to/statement.pdf --bank hdfc
 ```
 
-Supported banks: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `bob`, `generic`.
+Supported banks: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `generic`.
 
 Extra debug bundle (local troubleshooting only; redact before sharing):
 
@@ -90,7 +90,7 @@ The CLI prints Rich tables in compact mode:
 - Totals by person/card with points
 - Reconciliation summary
 
-Bank-specific parsing logic is under `cc_parser/parsers/` and all parsers implement a shared interface in `cc_parser/parsers/base.py`.
+Bank-specific parsing logic is under `cc_parser/parsers/`. New work should start from `GenericParser`, register in `cc_parser/parsers/registry.py`, and keep bank detection comments in `factory.py` aligned with the real ordering constraints.
 
 Detailed parsing notes are in `docs/parsing-notes.md`.
 
@@ -100,3 +100,5 @@ Contributor/agent guidance is in `AGENTS.md`.
 
 ICICI add-on handling:
 - if explicit add-on holder names are not reliably extractable, output uses stable labels in the format `ADDON <last 4 digits of addon>`.
+
+Internal parser layout now splits summary helpers into `cc_parser/parsers/summary/` and refund pairing into `cc_parser/parsers/adjustment_pairing/`. Legacy import paths remain as compatibility shims for downstream code.

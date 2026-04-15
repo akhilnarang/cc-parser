@@ -31,13 +31,15 @@ from cc_parser.parsers.cards import (
 )
 from cc_parser.parsers.extraction import group_words_into_lines
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
-from cc_parser.parsers.reconciliation import (
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
+from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
-    build_reconciliation,
-    detect_adjustment_pairs,
+    group_transactions_by_person,
+)
+from cc_parser.parsers.summary.reconciliation import build_reconciliation
+from cc_parser.parsers.summary.totals import (
     extract_due_date_from_pages,
     extract_name,
-    group_transactions_by_person,
 )
 from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (

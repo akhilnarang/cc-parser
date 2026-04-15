@@ -16,39 +16,24 @@ date detection, credit classification, and metadata extraction.
 import re
 from typing import Any
 
-from cc_parser.parsers.base import StatementParser
-from cc_parser.parsers.cards import (
-    extract_card_from_filename,
-    find_card_candidates,
-    normalize_transaction_persons,
-    split_by_transaction_type,
-)
+from cc_parser.parsers.cards import extract_card_from_filename, find_card_candidates
 from cc_parser.parsers.extraction import group_words_into_lines
-from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
+from cc_parser.parsers.generic import GenericParser
+from cc_parser.parsers.models import StatementSummary, Transaction
 from cc_parser.parsers.narration import (
     clean_narration_artifacts,
     collect_row_context_tokens,
     extract_continuation_narration,
     needs_context_merge,
 )
-from cc_parser.parsers.reconciliation import (
-    build_card_summaries,
-    build_reconciliation,
-    detect_adjustment_pairs,
-    group_transactions_by_person,
-)
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     SEPARATOR_TOKENS,
     clean_space,
-    format_amount,
     normalize_amount,
     normalize_date_long,
     normalize_token,
     parse_amount_token,
     parse_multi_token_date,
-    sum_amounts,
-    sum_points,
 )
 
 # SBI-specific noise headers that should not be treated as member names
@@ -475,84 +460,40 @@ def _extract_sbi_account_summary(
     return StatementSummary()
 
 
-class SbiParser(StatementParser):
+class SbiParser(GenericParser):
     """Parser entrypoint for SBI statements."""
 
     bank = "sbi"
 
-    def __init__(self) -> None:
-        self._last_txn_debug: dict[str, Any] | None = None
-        self._last_transactions: list[Transaction] | None = None
+    def _extract_name(self, full_text: str, pages: list[dict[str, Any]]) -> str | None:
+        return _extract_sbi_name(full_text)
 
-    def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
-        full_text = "\n".join(
-            str(page.get("text", "")) for page in raw_data.get("pages", [])
+    def _extract_card_number(
+        self, full_text: str, pages: list[dict[str, Any]], file_name: str
+    ) -> str | None:
+        return _extract_sbi_card_number(full_text) or extract_card_from_filename(
+            file_name
         )
 
-        name = _extract_sbi_name(full_text)
-        card_number = _extract_sbi_card_number(full_text) or extract_card_from_filename(
-            str(raw_data["file"])
-        )
+    def _extract_transactions_with_debug(
+        self, pages: list[dict[str, Any]]
+    ) -> tuple[list[Transaction], dict[str, Any]]:
+        return _extract_sbi_transactions(pages)
 
-        transactions, txn_debug = _extract_sbi_transactions(raw_data.get("pages", []))
-        self._last_txn_debug = txn_debug
-        self._last_transactions = transactions
+    def _extract_due_date(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> str | None:
+        return _extract_sbi_due_date(full_text, pages)
 
-        # Fill in card number for transactions missing it
-        if card_number:
-            for txn in transactions:
-                if not txn.card_number:
-                    txn.card_number = card_number
+    def _extract_total_amount_due(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> str | None:
+        return _extract_sbi_total_amount_due(full_text)
 
-        # Fix invalid person labels
-        normalize_transaction_persons(transactions, name)
-
-        debit_transactions, credit_transactions = split_by_transaction_type(
-            transactions
-        )
-
-        # Assign transaction IDs
-        debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
-        credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
-
-        # Detect adjustment pairs
-        adjustment_pairs = detect_adjustment_pairs(
-            debit_transactions, credit_transactions, self.bank
-        )
-
-        card_summaries, overall_total = build_card_summaries(debit_transactions, name)
-        person_groups = group_transactions_by_person(debit_transactions, name)
-
-        credit_total = sum_amounts(credit_transactions)
-        overall_reward_points = sum_points(debit_transactions)
-
-        due_date = _extract_sbi_due_date(full_text, raw_data.get("pages", []))
-        statement_total_amount_due = _extract_sbi_total_amount_due(full_text)
-        summary_fields = _extract_sbi_account_summary(raw_data.get("pages", []))
-        reconciliation = build_reconciliation(
-            statement_total_amount_due,
-            debit_transactions,
-            credit_transactions,
-            summary_fields,
-        )
-
-        return ParsedStatement(
-            file=raw_data["file"],
-            bank=self.bank,
-            name=name,
-            card_number=card_number,
-            due_date=due_date,
-            statement_total_amount_due=statement_total_amount_due,
-            card_summaries=card_summaries,
-            overall_total=overall_total,
-            person_groups=person_groups,
-            payments_refunds=credit_transactions,
-            payments_refunds_total=format_amount(credit_total),
-            possible_adjustment_pairs=adjustment_pairs,
-            overall_reward_points=str(int(overall_reward_points)),
-            transactions=debit_transactions,
-            reconciliation=reconciliation,
-        )
+    def _extract_summary(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> StatementSummary:
+        return _extract_sbi_account_summary(pages)
 
     def build_debug(self, raw_data: dict[str, Any]) -> dict[str, Any]:
         pages = raw_data.get("pages", [])

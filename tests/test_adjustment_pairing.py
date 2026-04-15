@@ -4,14 +4,15 @@ import pytest
 from decimal import Decimal
 from cc_parser.parsers.models import Transaction, AdjustmentPair
 from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
-from cc_parser.parsers.reconciliation import detect_adjustment_pairs
-from cc_parser.parsers.scoring_engine import (
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
+from cc_parser.parsers.adjustment_pairing.scoring import (
     score_candidate_pair,
     determine_confidence,
     determine_kind,
     calculate_amount_delta,
+    merchant_similarity,
 )
-from cc_parser.parsers.candidate_generation import (
+from cc_parser.parsers.adjustment_pairing.candidates import (
     is_normal_payment_credit,
     is_malformed,
     has_refund_keyword,
@@ -20,7 +21,6 @@ from cc_parser.parsers.candidate_generation import (
 )
 from cc_parser.parsers.match_selection import select_best_non_overlapping_pairs
 from cc_parser.parsers.narration import normalize_merchant_name
-from cc_parser.parsers.similarity_metrics import merchant_similarity
 
 
 class TestTransactionIdGeneration:

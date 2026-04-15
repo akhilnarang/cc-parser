@@ -20,7 +20,12 @@ if "pypdfium2" not in sys.modules:
 import pdfplumber  # noqa: E402
 from pypdf import PdfReader, PdfWriter  # noqa: E402
 
-from cc_parser.parsers.factory import BankChoice, detect_bank, get_parser  # noqa: E402
+from cc_parser.parsers.factory import (  # noqa: E402
+    BankChoice,
+    detect_bank,
+    get_parser,
+    list_bank_choices,
+)
 
 
 def _extract_raw(
@@ -127,8 +132,4 @@ def parse_pdf(
 
 def list_banks() -> list[str]:
     """Return available bank choices for the UI dropdown."""
-    from typing import get_args
-
-    # PEP 695 `type` aliases expose the underlying type via __value__
-    target = getattr(BankChoice, "__value__", BankChoice)
-    return list(get_args(target))
+    return list_bank_choices()
