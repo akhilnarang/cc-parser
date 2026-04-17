@@ -104,11 +104,155 @@ def _is_credit_narration(narration: str) -> tuple[bool, str | None]:
     return False, None
 
 
+# Order of Rs. values on the label-less (2026+) layout, page 1.
+# After the "Pay your bill now" row, the statement-summary rows stream in a
+# fixed order (one Rs. amount per visual line, except the first row which
+# puts the previous-balance "as on" date and the amount on the same line).
+_POSITIONAL_SUMMARY_ORDER = (
+    "previous_balance",
+    "spends",
+    "interest_charges",
+    "fees",
+    "applicable_taxes",
+    "repayments",
+    "refunds",
+    "waivers",
+    "total_amount_due",
+)
+
+
+def _extract_jupiter_page1_positional(
+    pages: list[dict[str, Any]],
+) -> dict[str, str] | None:
+    """Read page 1 values positionally for the label-less 2026+ layout.
+
+    Newer Jupiter statements are rendered with Inkscape+Cairo which flattens
+    the issuer chrome (labels like "Total amount due", "Previous balance"
+    etc.) into vector paths. Only the dynamic values survive text
+    extraction, so label-anchored lookups return nothing. The values do
+    land on page 1 in a deterministic order, so we pick them out by
+    position relative to the "Pay your bill now" anchor.
+
+    Returns None when the layout doesn't match (i.e. the older labeled
+    layout is in use) so callers can fall through to their label-based
+    paths.
+    """
+    if not pages:
+        return None
+
+    lines = group_words_into_lines(pages[0].get("words") or [])
+    if not lines:
+        return None
+
+    # Reject the labeled layout cheaply: if "Bill Summary" or "Statement
+    # Summary" appears on page 1, the label-based extractors already work.
+    for line_words in lines:
+        tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+        joined_upper = clean_space(" ".join(tokens)).upper()
+        if "STATEMENT SUMMARY" in joined_upper or "BILL SUMMARY" in joined_upper:
+            return None
+
+    # Find the "Pay your bill now" anchor -- the next non-blank Rs. line
+    # after it is the previous-balance row.
+    anchor_index: int | None = None
+    for i, line_words in enumerate(lines):
+        tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+        joined_upper = clean_space(" ".join(tokens)).upper()
+        if "PAY YOUR BILL NOW" in joined_upper:
+            anchor_index = i
+            break
+    if anchor_index is None:
+        return None
+
+    # Top block (above the anchor) holds the bill summary trio:
+    #   Rs. <total_amount_due>   <due_date DD Mon YYYY>
+    #   Rs. <min_amount_due>     <stmt_gen_date DD/MM/YYYY>
+    #   Rs. <credit_limit>       Rs. <available_credit>
+    result: dict[str, str] = {}
+
+    def _rs_amounts(line_tokens: list[str]) -> list[str]:
+        amounts: list[str] = []
+        for k, t in enumerate(line_tokens):
+            if t.upper() in ("RS.", "RS") and k + 1 < len(line_tokens):
+                amt = _parse_jupiter_amount(line_tokens[k + 1])
+                if amt:
+                    amounts.append(_normalize_jupiter_amount(amt))
+        return amounts
+
+    for i in range(anchor_index):
+        tokens = [normalize_token(str(w.get("text", ""))) for w in lines[i]]
+        amounts = _rs_amounts(tokens)
+        if not amounts:
+            continue
+        # First Rs.-bearing line: total amount due (+ due date)
+        if "total_amount_due" not in result:
+            result["total_amount_due"] = amounts[0]
+            # Due date is after the amount as DD Mon YYYY
+            for k in range(len(tokens) - 2):
+                date_val, consumed = parse_multi_token_date(tokens, k)
+                if date_val and consumed == 3:
+                    result["due_date"] = date_val
+                    break
+            continue
+        # Second Rs.-bearing line: min due + statement generation date
+        if "min_amount_due" not in result:
+            result["min_amount_due"] = amounts[0]
+            match = re.search(
+                r"\b(\d{2}/\d{2}/\d{4})\b",
+                clean_space(" ".join(tokens)),
+            )
+            if match:
+                result["statement_generation_date"] = match.group(1)
+            continue
+        # Third Rs.-bearing line: credit limit + available credit
+        if "credit_limit" not in result and len(amounts) >= 1:
+            result["credit_limit"] = amounts[0]
+            if len(amounts) >= 2:
+                result["available_credit"] = amounts[1]
+
+    # Below the anchor: the summary rows. First row carries the
+    # previous-balance "as on" date alongside its Rs. value.
+    summary_amounts: list[str] = []
+    previous_balance_as_on: str | None = None
+    for line_words in lines[anchor_index + 1 :]:
+        tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+        if not tokens:
+            continue
+        joined = clean_space(" ".join(tokens))
+        # Stop at page footer ("Page N of M")
+        if re.fullmatch(r"Page\s+\d+\s+of\s+\d+", joined, flags=re.IGNORECASE):
+            break
+        amounts = _rs_amounts(tokens)
+        if not amounts:
+            continue
+        if not summary_amounts:
+            match = re.search(r"\b(\d{2}/\d{2}/\d{4})\b", joined)
+            if match:
+                previous_balance_as_on = match.group(1)
+        summary_amounts.extend(amounts)
+
+    if len(summary_amounts) < len(_POSITIONAL_SUMMARY_ORDER):
+        # Layout didn't match expectations -- bail out rather than emit
+        # half-parsed data that would confuse reconciliation.
+        return None
+
+    for key, value in zip(_POSITIONAL_SUMMARY_ORDER, summary_amounts):
+        result[key] = value
+
+    if previous_balance_as_on:
+        result["previous_balance_as_on"] = previous_balance_as_on
+
+    return result
+
+
 def _extract_jupiter_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from Jupiter statement.
 
-    Jupiter prints the bare name (no honorific) on the line after the
-    ``Name`` / ``Card number`` header row.
+    Older Jupiter statements print the bare name on the line after the
+    ``Name`` / ``Card number`` header row. Newer statements (2026+) render
+    those labels as vector paths so only the value survives extraction --
+    for that layout the name is the first ALL-CAPS line on page 1 that
+    isn't the statement period.
     """
     for page in pages[:2]:
         lines = group_words_into_lines(page.get("words") or [])
@@ -136,7 +280,7 @@ def _extract_jupiter_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                     if 2 <= len(name_parts) <= 5:
                         return " ".join(name_parts)
 
-    # Fallback: look for name in text
+    # Fallback 1: labeled text "Name\n<value>"
     match = re.search(
         r"Name\s+Card\s+number\s*\n\s*([A-Z][A-Z ]+?)(?:\s+X{4}|\s*\n)",
         full_text,
@@ -148,6 +292,34 @@ def _extract_jupiter_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
         if 2 <= len(parts) <= 5:
             return candidate
 
+    # Fallback 2 (label-less layout): first ALL-CAPS alphabetic line on
+    # page 1 before the first "Rs." line. Skip the statement period line
+    # (contains "MAR 2026 -" / "FEB 2026" / month range).
+    if not pages:
+        return None
+
+    lines = group_words_into_lines(pages[0].get("words") or [])
+    for line_words in lines:
+        tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+        if not tokens:
+            continue
+        joined = clean_space(" ".join(tokens))
+        joined_upper = joined.upper()
+        # Hit the values region: stop before scanning further
+        if any(t.upper() in ("RS.", "RS") for t in tokens):
+            break
+        # Skip statement period lines like "17 MAR 2026 - 16 APR 2026"
+        if "-" in tokens and any(t in MONTH_ABBREVS for t in (s.upper() for s in tokens)):
+            continue
+        # Accept only lines of 2-5 ALL-CAPS alphabetic tokens.
+        name_parts = [t for t in tokens if re.fullmatch(r"[A-Z][A-Z.'-]*", t)]
+        if (
+            2 <= len(name_parts) <= 5
+            and len(name_parts) == len(tokens)
+            and joined_upper == joined
+        ):
+            return " ".join(name_parts)
+
     return None
 
 
@@ -156,7 +328,10 @@ def _extract_jupiter_card_number(
 ) -> str | None:
     """Extract card number from Jupiter statement.
 
-    Jupiter uses ``XXXX XXXX XXXX DDDD`` format spread across 4 tokens.
+    Older Jupiter statements use ``XXXX XXXX XXXX DDDD`` in the personal
+    details block. Newer statements drop that block and instead label the
+    transactions section ``Rupay Transactions - DDDD`` with the card
+    suffix.
     """
     for page in pages[:2]:
         lines = group_words_into_lines(page.get("words") or [])
@@ -172,8 +347,17 @@ def _extract_jupiter_card_number(
                 ):
                     return f"XXXX XXXX XXXX {tokens[j + 3]}"
 
-    # Text-level fallback
+    # Text-level fallback for masked format
     match = re.search(r"XXXX\s+XXXX\s+XXXX\s+(\d{4})", full_text)
+    if match:
+        return f"XXXX XXXX XXXX {match.group(1)}"
+
+    # "Rupay Transactions - DDDD" section header on page 2+
+    match = re.search(
+        r"Rupay\s+Transactions\s*-\s*(\d{4})\b",
+        full_text,
+        flags=re.IGNORECASE,
+    )
     if match:
         return f"XXXX XXXX XXXX {match.group(1)}"
 
@@ -221,6 +405,11 @@ def _extract_jupiter_due_date(
         year = match.group(3)
         if month:
             return f"{day}/{month}/{year}"
+
+    # Label-less 2026+ layout: due date appears after the first Rs. value.
+    positional = _extract_jupiter_page1_positional(pages)
+    if positional and positional.get("due_date"):
+        return positional["due_date"]
 
     return None
 
@@ -276,6 +465,12 @@ def _extract_jupiter_total_amount_due(
     if match:
         return _normalize_jupiter_amount(match.group(1))
 
+    # Label-less 2026+ layout: total amount due is the first Rs. value on
+    # page 1 (top of the bill summary block).
+    positional = _extract_jupiter_page1_positional(pages)
+    if positional and positional.get("total_amount_due"):
+        return positional["total_amount_due"]
+
     return None
 
 
@@ -323,6 +518,14 @@ def _extract_jupiter_transactions(
             if "TRANSACTION DETAILS" in joined_upper and "AMOUNT" in joined_upper:
                 continue
             if "EDGE CSB BANK" in joined_upper:
+                continue
+
+            # Jupiter transaction dates are always ``DD Mon YYYY`` (or 2-digit
+            # year). Require a month abbreviation as the 2nd token so the
+            # "Previous balance (as on 17/02/2026)" value line -- which
+            # pdfplumber splits as ['1','7','/','0','2',...] -- doesn't
+            # slip through parse_multi_token_date's lenient dateutil fallback.
+            if len(tokens) < 2 or tokens[1].upper() not in MONTH_ABBREVS:
                 continue
 
             # Try to parse date at the start of the line (DD Mon YYYY)
@@ -541,6 +744,20 @@ def _extract_jupiter_account_summary(
                 refunds = line_amount
             elif label == "waivers" and waivers is None:
                 waivers = line_amount
+
+    # Label-less 2026+ layout: fall back to positional extraction for any
+    # summary fields we couldn't pull via labels.
+    if not any([previous_balance, spends, repayments]):
+        positional = _extract_jupiter_page1_positional(pages)
+        if positional:
+            previous_balance = previous_balance or positional.get("previous_balance")
+            spends = spends or positional.get("spends")
+            interest_charges = interest_charges or positional.get("interest_charges")
+            fees = fees or positional.get("fees")
+            applicable_taxes = applicable_taxes or positional.get("applicable_taxes")
+            repayments = repayments or positional.get("repayments")
+            refunds = refunds or positional.get("refunds")
+            waivers = waivers or positional.get("waivers")
 
     # Build summary
     candidates = [
