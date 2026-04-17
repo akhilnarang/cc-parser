@@ -156,6 +156,7 @@ class StatementStore {
       name: d.name || "unknown",
       txn_count: txnCount,
       overall_total: d.overall_total || "0.00",
+      statement_total_amount_due: d.statement_total_amount_due || null,
       overall_reward_points: d.overall_reward_points || 0,
       reward_points_balance: d.reward_points_balance || null,
       stored_at: new Date().toISOString(),
@@ -199,7 +200,7 @@ class StatementStore {
     );
   }
 
-  /** Group statements by due_date month, sum totals.
+  /** Group statements by due_date month, sum statement-level Total Amount Due.
    *  @param {object[]} [stmts] - pre-fetched records (avoids extra IDB read)
    *  @returns {Promise<Array<{month: string, total: number, count: number}>>} */
   async aggregateByMonth(stmts) {
@@ -208,7 +209,13 @@ class StatementStore {
     for (const s of stmts) {
       const month = s.due_date !== "unknown" ? s.due_date.slice(0, 7) : "unknown";
       const cur = map.get(month) || { month, total: 0, count: 0 };
-      cur.total += StatementStore.parseAmount(s.overall_total);
+      // Fall back through the data blob for records stored before
+      // statement_total_amount_due was persisted at the top level.
+      const due =
+        s.statement_total_amount_due ||
+        (s.data && s.data.statement_total_amount_due) ||
+        s.overall_total;
+      cur.total += StatementStore.parseAmount(due);
       cur.count += 1;
       map.set(month, cur);
     }

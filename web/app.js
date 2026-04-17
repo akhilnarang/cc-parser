@@ -530,7 +530,15 @@ async function renderLibrary() {
       html += `<div class="lib-card">`;
       html += `<div class="lib-card-main">`;
       html += `<div class="lib-card-bank">${esc(bank)}</div>`;
-      html += `<div class="lib-card-amount">${esc(s.overall_total || "0.00")}</div>`;
+      // Show the bill-level Total Amount Due, not the sum of parsed spends.
+      // Fall back through the data blob for records stored before this field
+      // was persisted at the top level.
+      const dueAmount =
+        s.statement_total_amount_due ||
+        (s.data && s.data.statement_total_amount_due) ||
+        s.overall_total ||
+        "0.00";
+      html += `<div class="lib-card-amount">${esc(dueAmount)}</div>`;
       html += `</div>`;
       html += `<div class="lib-card-meta">`;
       if (card) html += `<span>${esc(card)}</span>`;
@@ -677,12 +685,17 @@ async function renderDashboard() {
   const totalPoints = await statementStore.totalRewardPoints(stmts);
   const latestPoints = await statementStore.latestRewardPoints(stmts);
 
-  // Compute summary
-  let totalSpend = 0;
+  // Compute summary. "Total Due" sums statement-level Total Amount Due --
+  // not sum(debits), which double-counts refunded purchases.
+  let totalDue = 0;
   const cards = new Set();
   const dates = [];
   for (const s of stmts) {
-    totalSpend += StatementStore.parseAmount(s.overall_total);
+    const due =
+      s.statement_total_amount_due ||
+      (s.data && s.data.statement_total_amount_due) ||
+      s.overall_total;
+    totalDue += StatementStore.parseAmount(due);
     cards.add(`${s.bank}|${s.card_last_four}`);
     if (s.due_date !== "unknown") dates.push(s.due_date);
   }
@@ -699,7 +712,7 @@ async function renderDashboard() {
   html += `<div class="content-grid">`;
   html += `<div>`;
   html += `<div class="summary-grid summary-grid--sidebar">`;
-  html += summaryCard("Total Spend", formatAmount(totalSpend), "hero");
+  html += summaryCard("Total Due", formatAmount(totalDue), "hero");
   html += summaryCard("Statements", String(stmts.length));
   html += summaryCard("Cards", String(cards.size));
   html += summaryCard("Date Range", dateRange);
@@ -710,10 +723,10 @@ async function renderDashboard() {
   html += `</div></div>`;
   html += `<div>`;
 
-  // Spend by Month (vertical bar chart, fallback to horizontal for >12)
+  // Amount Due by Month (vertical bar chart, fallback to horizontal for >12)
   if (byMonth.length > 0) {
     const maxMonth = Math.max(...byMonth.map((m) => m.total));
-    html += `<div class="dash-section"><h3>Spend by Month</h3>`;
+    html += `<div class="dash-section"><h3>Amount Due by Month</h3>`;
 
     if (byMonth.length <= 12) {
       // Vertical chart
