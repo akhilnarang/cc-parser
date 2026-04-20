@@ -287,12 +287,27 @@ def print_compact_table(output_data: ParsedStatement) -> None:
     else:
         console.print(f"Reward Points (debits only): {overall_reward_points}")
     bonus_pts = output_data.reward_points_bonus
-    if bonus_pts and bonus_pts not in ("0", "0.00"):
-        console.print(
-            f"Reward Points (accelerated/bonus this cycle): {bonus_pts}"
-        )
+    # Suppress the scalar line when an itemized breakdown follows — the
+    # Rewards Program Points Summary table below already shows the total.
+    if (
+        bonus_pts
+        and bonus_pts not in ("0", "0.00")
+        and not output_data.reward_points_bonus_breakdown
+    ):
+        console.print(f"Reward Points (accelerated/bonus this cycle): {bonus_pts}")
     if output_data.reward_points_balance:
         console.print(f"Reward Points Balance: {output_data.reward_points_balance}")
+
+    if bonus_breakdown := output_data.reward_points_bonus_breakdown:
+        bonus_table = Table(title="Rewards Program Points Summary")
+        bonus_table.add_column("Program", style="white")
+        bonus_table.add_column("Points", style="magenta", justify="right")
+        for bp in bonus_breakdown:
+            bonus_table.add_row(bp.program, bp.points)
+        if output_data.reward_points_bonus:
+            bonus_table.add_section()
+            bonus_table.add_row("Total", output_data.reward_points_bonus)
+        console.print(bonus_table)
 
     recon_table = Table(title="Reconciliation")
     recon_table.add_column("Metric", style="white")

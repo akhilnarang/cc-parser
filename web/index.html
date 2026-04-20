@@ -418,6 +418,49 @@ header {
   font-variant-numeric: tabular-nums lining-nums;
 }
 
+.reward-breakdown {
+  margin-top: 8px;
+  font-size: 0.78rem;
+}
+.reward-breakdown > summary {
+  cursor: pointer;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  list-style: none;
+  user-select: none;
+}
+.reward-breakdown > summary::-webkit-details-marker { display: none; }
+.reward-breakdown > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.reward-breakdown[open] > summary::before {
+  content: "▾ ";
+}
+.reward-breakdown-table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.reward-breakdown-table td {
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.reward-breakdown-table td.col-amount {
+  text-align: right;
+  white-space: nowrap;
+  padding-left: 8px;
+}
+
 .summary-label {
   font-size: 0.67rem;
   font-weight: 500;

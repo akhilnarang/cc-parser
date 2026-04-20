@@ -899,7 +899,12 @@ function renderResults(d) {
   html += summaryCard("Name", d.name || "-");
   html += summaryCard("Card", d.card_number || "-");
   html += summaryCard("Due Date", d.due_date || "-");
-  html += summaryCard("Reward Points", d.overall_reward_points || "0");
+  html += summaryCard(
+    "Reward Points",
+    d.overall_reward_points || "0",
+    undefined,
+    rewardBreakdownHtml(d.reward_points_bonus_breakdown),
+  );
   if (d.reward_points_balance) {
     html += summaryCard("Points Balance", d.reward_points_balance);
   }
@@ -1113,9 +1118,24 @@ function tableSection(title, count, columns, rows) {
   return h;
 }
 
-function summaryCard(label, value, variant) {
+function summaryCard(label, value, variant, extraHtml) {
   const cls = variant ? ` summary-item--${variant}` : "";
-  return `<div class="summary-item${cls}"><div class="summary-label">${esc(label)}</div><div class="summary-value">${esc(value)}</div></div>`;
+  const extra = extraHtml ? extraHtml : "";
+  return `<div class="summary-item${cls}"><div class="summary-label">${esc(label)}</div><div class="summary-value">${esc(value)}</div>${extra}</div>`;
+}
+
+function rewardBreakdownHtml(breakdown) {
+  if (!breakdown || !breakdown.length) return "";
+  const rows = breakdown
+    .map((bp) => {
+      const cls =
+        String(bp.points).trim().startsWith("-")
+          ? "col-amount is-debit"
+          : "col-amount";
+      return `<tr><td>${esc(bp.program)}</td><td class="${cls}">${esc(bp.points)}</td></tr>`;
+    })
+    .join("");
+  return `<details class="reward-breakdown"><summary>Breakdown (${breakdown.length})</summary><table class="reward-breakdown-table"><tbody>${rows}</tbody></table></details>`;
 }
 
 function esc(s) {

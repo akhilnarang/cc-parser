@@ -22,7 +22,8 @@ This document describes the normalized parser output.
 - `overall_reward_points` (`string`): reward points earned this cycle. Prefers the statement-declared total when available (e.g. ICICI "Total Points earned*", HSBC "Earned"); otherwise falls back to the per-transaction sum.
 - `reward_points_balance` (`string | null`): cumulative reward points balance (when available, e.g. Axis eDGE, HSBC closing balance).
 - `reward_points_line_total` (`string | null`): sum of per-transaction reward points only. Populated when the parser used a statement-declared figure for `overall_reward_points`, so the per-line sum remains visible for reconciliation.
-- `reward_points_bonus` (`string | null`): accelerated/bonus points credited this cycle that aren't visible in per-transaction rows (e.g. ICICI iShop 5× bonus, HDFC accelerated spend categories). Already included in `overall_reward_points`; exposed separately for transparency. Currently a scalar — if/when a parser needs per-category breakdown (e.g. HDFC with multiple accelerated categories), this field may be promoted to a structured type.
+- `reward_points_bonus` (`string | null`): accelerated/bonus points credited this cycle that aren't visible in per-transaction rows (e.g. ICICI iShop 5× bonus, HDFC's "Rewards Program Points Summary" declared Total). Already included in `overall_reward_points`; exposed separately for transparency. Sourced from the statement's declared figure where available.
+- `reward_points_bonus_breakdown` (`array | null`): itemized list of bonus programs when the statement exposes one (e.g. HDFC's "Rewards Program Points Summary" table). Each entry is `{ program: string, points: string }`. The sum of entries is typically equal to `reward_points_bonus`, but can diverge when the statement's declared Total already nets out reversal rows (e.g. HDFC March `SmartBuy_Reversal` -150 pts).
 - `reconciliation` (`object`): audit metrics and deltas.
 
 ## Transaction Object

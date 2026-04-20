@@ -309,7 +309,9 @@ def _extract_jupiter_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
         if any(t.upper() in ("RS.", "RS") for t in tokens):
             break
         # Skip statement period lines like "17 MAR 2026 - 16 APR 2026"
-        if "-" in tokens and any(t in MONTH_ABBREVS for t in (s.upper() for s in tokens)):
+        if "-" in tokens and any(
+            t in MONTH_ABBREVS for t in (s.upper() for s in tokens)
+        ):
             continue
         # Accept only lines of 2-5 ALL-CAPS alphabetic tokens.
         name_parts = [t for t in tokens if re.fullmatch(r"[A-Z][A-Z.'-]*", t)]

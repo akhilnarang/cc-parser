@@ -47,6 +47,13 @@ class AdjustmentPair(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
+class BonusProgram(BaseModel):
+    """One row from a bank's bonus/accelerated reward programs breakdown."""
+
+    program: str
+    points: str
+
+
 class StatementSummary(BaseModel):
     """Account summary fields extracted from the statement header area."""
 
@@ -118,6 +125,7 @@ class ParsedStatement(BaseModel):
     reward_points_balance: str | None = None
     reward_points_line_total: str | None = None
     reward_points_bonus: str | None = None
+    reward_points_bonus_breakdown: list[BonusProgram] | None = None
     transactions: list[Transaction]
     reconciliation: Reconciliation
     possible_adjustment_pairs: list[AdjustmentPair] = Field(default_factory=list)
@@ -125,6 +133,7 @@ class ParsedStatement(BaseModel):
 
 __all__ = [
     "AdjustmentPair",
+    "BonusProgram",
     "CardSummary",
     "ParsedStatement",
     "PersonGroup",

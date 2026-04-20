@@ -102,7 +102,7 @@ def parse_date_value(
             parserinfo=parser_info,
         )
     # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-    except (ValueError, OverflowError, TypeError):
+    except ValueError, OverflowError, TypeError:
         return None
     return parsed.date()
 

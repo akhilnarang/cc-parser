@@ -112,7 +112,7 @@ def calculate_amount_delta(
             delta_pct_str = None
         return delta, format_amount(delta), delta_pct_str
     # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-    except (ValueError, Exception):
+    except ValueError, Exception:
         return Decimal("0"), "0.00", None
 
 
@@ -146,7 +146,7 @@ def determine_kind(
             ):
                 return "partial_refund"
         # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-        except (ValueError, Exception):
+        except ValueError, Exception:
             pass
 
     return "possible_refund"
@@ -217,7 +217,7 @@ def score_candidate_pair(
                 score += PENALTY_LARGE_AMOUNT_DELTA
                 reasons.append(f"large_amount_delta_{delta_pct:.1f}%")
         # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-        except (ValueError, Exception):
+        except ValueError, Exception:
             pass
 
     debit_tokens = tokenize(debit.narration or "")
