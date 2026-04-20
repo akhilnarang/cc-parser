@@ -1088,7 +1088,17 @@ function tableSection(title, count, columns, rows) {
   if (count != null) h += ` <span class="badge">${count}</span>`;
   h += `</h3>`;
   h += `<div class="table-wrap"><table><thead><tr>`;
-  for (const col of columns) h += `<th>${esc(col)}</th>`;
+  const headerClasses = columns.map((_, i) => {
+    for (const row of rows) {
+      const cell = row[i];
+      if (cell && cell.c) return cell.c;
+    }
+    return "";
+  });
+  for (let i = 0; i < columns.length; i++) {
+    const cls = headerClasses[i] ? ` class="${headerClasses[i]}"` : "";
+    h += `<th${cls}>${esc(columns[i])}</th>`;
+  }
   h += `</tr></thead><tbody>`;
   for (const row of rows) {
     const rc = row.rowClass ? ` class="${row.rowClass}"` : "";
