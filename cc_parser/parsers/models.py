@@ -116,6 +116,8 @@ class ParsedStatement(BaseModel):
     payments_refunds_total: str
     overall_reward_points: str
     reward_points_balance: str | None = None
+    reward_points_line_total: str | None = None
+    reward_points_bonus: str | None = None
     transactions: list[Transaction]
     reconciliation: Reconciliation
     possible_adjustment_pairs: list[AdjustmentPair] = Field(default_factory=list)

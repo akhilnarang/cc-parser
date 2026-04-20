@@ -22,6 +22,38 @@ _BREAKDOWN_HEADER = re.compile(
 )
 _AMOUNT_RE = re.compile(r"`?\s*([\d,]+\.\d{2})")
 
+# ICICI prints a "Bank Rewards" block on page 1 with cycle-authoritative totals.
+# Per-line transaction points undercount because iShop/Reward360 5x bonus and
+# welcome/onboarding awards aren't shown per-transaction.
+_REWARDS_BLOCK_RE = re.compile(r"Bank Rewards", re.IGNORECASE)
+_REWARDS_TOTAL_RE = re.compile(
+    r"Total Points earned\*?\s+(-?\d[\d,]*(?:\.\d+)?)", re.IGNORECASE
+)
+_REWARDS_ISHOP_RE = re.compile(
+    r"Points earned on iShop\s+(-?\d[\d,]*(?:\.\d+)?)", re.IGNORECASE
+)
+
+
+def _extract_declared_rewards(
+    pages: list[dict[str, Any]],
+) -> tuple[str | None, str | None]:
+    """Extract the statement-declared rewards totals from the page-1 block.
+
+    Anchored to the "Bank Rewards" heading so unrelated "Total Points earned"
+    lines elsewhere in the statement (e.g. redemption history) don't shadow it.
+    Returns (total_points_earned, points_earned_on_ishop); either may be None.
+    """
+    if not pages:
+        return None, None
+    page_text = str(pages[0].get("text", ""))
+    block_match = _REWARDS_BLOCK_RE.search(page_text)
+    search_text = page_text[block_match.start() :] if block_match else page_text
+    total_match = _REWARDS_TOTAL_RE.search(search_text)
+    ishop_match = _REWARDS_ISHOP_RE.search(search_text)
+    total = total_match.group(1).replace(",", "") if total_match else None
+    ishop = ishop_match.group(1).replace(",", "") if ishop_match else None
+    return total, ishop
+
 
 INVALID_PERSON_KEYWORDS = {
     "PLACE OF SUPPLY",
@@ -85,13 +117,15 @@ class IciciParser(GenericParser):
         match = _BREAKDOWN_HEADER.search(full_text)
         if not match:
             return StatementSummary()
-        tail = full_text[match.end() : match.end() + 400]
+        tail = full_text[match.end() : match.end() + 800]
         amounts = _AMOUNT_RE.findall(tail)
         if len(amounts) < 4:
             return StatementSummary()
-        prev, purchases, _cash, credits = (normalize_amount(a) for a in amounts[:4])
+        prev, purchases, cash, credits = (normalize_amount(a) for a in amounts[:4])
+        # finance_charges intentionally left None — ICICI doesn't split it in
+        # this row; reconciliation treats None as 0 which is correct here.
         return StatementSummary(
-            summary_amount_candidates=[prev, purchases, amounts[2], credits],
+            summary_amount_candidates=[prev, purchases, cash, credits],
             previous_statement_dues=prev,
             purchases_debit=purchases,
             payments_credits_received=credits,
@@ -108,6 +142,15 @@ class IciciParser(GenericParser):
         """
         parsed = super().parse(raw_data)
         parsed.bank = self.bank
+
+        declared_total, declared_ishop = _extract_declared_rewards(
+            raw_data.get("pages", [])
+        )
+        if declared_total is not None:
+            parsed.reward_points_line_total = parsed.overall_reward_points
+            parsed.overall_reward_points = declared_total
+        if declared_ishop is not None:
+            parsed.reward_points_bonus = declared_ishop
 
         debit_transactions = parsed.transactions
         credit_transactions = parsed.payments_refunds

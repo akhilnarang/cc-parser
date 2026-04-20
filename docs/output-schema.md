@@ -5,7 +5,7 @@ This document describes the normalized parser output.
 ## Top-Level Fields
 
 - `file` (`string`): input PDF file name only (basename, not full local path).
-- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, or `generic`).
+- `bank` (`string`): parser profile (`hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, or `generic`).
 - `name` (`string | null`): primary cardholder name.
 - `card_number` (`string | null`): primary masked card number.
 - `due_date` (`string | null`): detected due date.
@@ -19,8 +19,10 @@ This document describes the normalized parser output.
 - `card_summaries` (`array`): aggregated totals by `person + card_number`.
 - `person_groups` (`array`): grouped debit transactions by person.
 - `overall_total` (`string`): debit total only.
-- `overall_reward_points` (`string`): debit-side reward points total (earned this cycle).
+- `overall_reward_points` (`string`): reward points earned this cycle. Prefers the statement-declared total when available (e.g. ICICI "Total Points earned*", HSBC "Earned"); otherwise falls back to the per-transaction sum.
 - `reward_points_balance` (`string | null`): cumulative reward points balance (when available, e.g. Axis eDGE, HSBC closing balance).
+- `reward_points_line_total` (`string | null`): sum of per-transaction reward points only. Populated when the parser used a statement-declared figure for `overall_reward_points`, so the per-line sum remains visible for reconciliation.
+- `reward_points_bonus` (`string | null`): accelerated/bonus points credited this cycle that aren't visible in per-transaction rows (e.g. ICICI iShop 5× bonus, HDFC accelerated spend categories). Already included in `overall_reward_points`; exposed separately for transparency. Currently a scalar — if/when a parser needs per-category breakdown (e.g. HDFC with multiple accelerated categories), this field may be promoted to a structured type.
 - `reconciliation` (`object`): audit metrics and deltas.
 
 ## Transaction Object

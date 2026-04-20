@@ -278,7 +278,19 @@ def print_compact_table(output_data: ParsedStatement) -> None:
 
     console.print(summary_table)
     console.print(f"Spend Total (debits only): {overall_total}")
-    console.print(f"Reward Points (debits only): {overall_reward_points}")
+    line_total = output_data.reward_points_line_total
+    if line_total and line_total != overall_reward_points:
+        console.print(
+            f"Reward Points (statement-declared): {overall_reward_points}"
+            f"  (per-line sum: {line_total})"
+        )
+    else:
+        console.print(f"Reward Points (debits only): {overall_reward_points}")
+    bonus_pts = output_data.reward_points_bonus
+    if bonus_pts and bonus_pts not in ("0", "0.00"):
+        console.print(
+            f"Reward Points (accelerated/bonus this cycle): {bonus_pts}"
+        )
     if output_data.reward_points_balance:
         console.print(f"Reward Points Balance: {output_data.reward_points_balance}")
 
