@@ -8,12 +8,19 @@ import re
 from typing import Any
 
 from cc_parser.parsers.generic import GenericParser
-from cc_parser.parsers.models import ParsedStatement
-from cc_parser.parsers.tokens import format_amount, sum_amounts
+from cc_parser.parsers.models import ParsedStatement, StatementSummary
+from cc_parser.parsers.tokens import format_amount, normalize_amount, sum_amounts
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
+
+
+_BREAKDOWN_HEADER = re.compile(
+    r"Previous Balance\s+Purchases\s*/\s*Charges\s+Cash Advances\s+Payments\s*/\s*Credits",
+    re.IGNORECASE,
+)
+_AMOUNT_RE = re.compile(r"`?\s*([\d,]+\.\d{2})")
 
 
 INVALID_PERSON_KEYWORDS = {
@@ -66,6 +73,29 @@ class IciciParser(GenericParser):
     """Parser entrypoint for ICICI statements."""
 
     bank = "icici"
+
+    def _extract_summary(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> StatementSummary:
+        # ICICI's top "Statement Summary" block lists Total Due, Min Due, and
+        # credit-limit figures — the generic heuristic misreads credit-limit
+        # amounts as finance charges. The real breakdown lives in a row
+        # labeled "Previous Balance | Purchases/Charges | Cash Advances |
+        # Payments/Credits" near the bottom of page 1.
+        match = _BREAKDOWN_HEADER.search(full_text)
+        if not match:
+            return StatementSummary()
+        tail = full_text[match.end() : match.end() + 400]
+        amounts = _AMOUNT_RE.findall(tail)
+        if len(amounts) < 4:
+            return StatementSummary()
+        prev, purchases, _cash, credits = (normalize_amount(a) for a in amounts[:4])
+        return StatementSummary(
+            summary_amount_candidates=[prev, purchases, amounts[2], credits],
+            previous_statement_dues=prev,
+            purchases_debit=purchases,
+            payments_credits_received=credits,
+        )
 
     def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Parse ICICI statements with add-on specific normalization.
