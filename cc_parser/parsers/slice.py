@@ -6,7 +6,10 @@ Slice credit card statements differ from other banks in several ways:
   Line 2: Single character (avatar initial — skipped)
   Line 3: ``DD Mon 'YY  •  UPI`` (date and optional payment mode)
 - Section headers (``Spends``, ``Cashback``, ``EMIs``) determine debit/credit
-- Amounts are prefixed with ``₹`` (e.g. ``₹459.17``, ``₹25,000``)
+- Amounts are prefixed with ``₹`` (e.g. ``₹459.17``, ``₹25,000``). Newer
+  templates render the ``₹`` glyph a few units below the amount so it
+  groups as a separate visual line; ``_merge_orphan_rupee_lines`` folds
+  those orphan lines back onto the amount token before parsing.
 - Amounts may or may not have decimal places
 - Dates use ``DD Mon 'YY`` format (e.g. ``16 Mar '26``) with apostrophe year
 - Card number is ``XXXX XXXX XXXX DDDD``
@@ -50,6 +53,57 @@ from cc_parser.parsers.tokens import (
 
 # Matches amounts with or without decimals: "459.17", "25,000", "1,425.50"
 _SLICE_AMOUNT_RE = re.compile(r"^\d[\d,]*(?:\.\d{2})?$")
+
+# Matches an orphan rupee token on its own line. Newer Slice statements
+# render ``₹`` on a separate visual line from the amount (a few units
+# below), so line-grouping sees ``["MERCHANT", "AMOUNT"]`` and ``["₹"]``
+# as two lines. The orphan may also carry a trailing decimal fragment
+# (e.g. ``₹ .54``) — we capture it so the paise are preserved when
+# merging, not dropped.
+_ORPHAN_RUPEE_RE = re.compile(r"^\s*₹\s*(?P<frac>\.\d{2})?\s*$")
+
+
+def _merge_orphan_rupee_lines(
+    lines: list[list[dict[str, Any]]],
+) -> list[list[dict[str, Any]]]:
+    """Fold standalone ``₹`` lines into the preceding line.
+
+    Slice statements render the rupee glyph a few vertical units below
+    the amount, so ``group_words_into_lines`` emits it as its own line.
+    We re-attach it to the final token on the previous line (only if
+    that token is amount-shaped) so downstream logic can treat
+    ``₹AMOUNT`` as one token. If the orphan line carries a decimal
+    fragment (e.g. ``₹ .54``), we append it to the amount so paise are
+    preserved.
+    """
+    merged: list[list[dict[str, Any]]] = []
+    for line in lines:
+        joined = clean_space(" ".join(str(w.get("text", "")) for w in line))
+        orphan_match = _ORPHAN_RUPEE_RE.fullmatch(joined)
+        if orphan_match and merged:
+            prev = merged[-1]
+            # If the previous line already carries a glued ``₹...`` amount,
+            # this orphan belongs to something else. Drop it rather than
+            # rewriting unrelated numerics on that line.
+            has_glued_amount = any(
+                normalize_token(str(w.get("text", ""))).startswith("₹")
+                for w in prev
+            )
+            if not has_glued_amount and prev:
+                # Only attach to the final token, and only if it is
+                # amount-shaped. Walking further left would rewrite
+                # unrelated numerics (e.g. the day in ``Due on 5 May``).
+                last_text = normalize_token(str(prev[-1].get("text", "")))
+                if _SLICE_AMOUNT_RE.fullmatch(last_text):
+                    frac = orphan_match.group("frac") or ""
+                    # Only append the fraction if the amount has no
+                    # decimals yet — otherwise we'd double-count.
+                    if frac and "." in last_text:
+                        frac = ""
+                    prev[-1] = {**prev[-1], "text": f"₹{last_text}{frac}"}
+            continue
+        merged.append(line)
+    return merged
 
 # Section name constants
 _SECTION_SPENDS = "SPENDS"
@@ -194,7 +248,9 @@ def _extract_slice_due_date(full_text: str, pages: list[dict[str, Any]]) -> str 
     year = _infer_year_from_text(full_text)
 
     for page in pages[:1]:
-        lines = group_words_into_lines(page.get("words") or [])
+        lines = _merge_orphan_rupee_lines(
+            group_words_into_lines(page.get("words") or [])
+        )
         for line_words in lines:
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             joined = clean_space(" ".join(tokens)).upper()
@@ -233,7 +289,9 @@ def _extract_slice_total_amount_due(
     Slice has ``Total amount due ₹AMOUNT`` in the Statement summary section.
     """
     for page in pages[:1]:
-        lines = group_words_into_lines(page.get("words") or [])
+        lines = _merge_orphan_rupee_lines(
+            group_words_into_lines(page.get("words") or [])
+        )
         for line_words in lines:
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             joined = clean_space(" ".join(tokens)).upper()
@@ -282,7 +340,7 @@ def _extract_slice_transactions(
     for page in pages:
         page_number = int(page.get("page_number", 0) or 0)
         words = page.get("words") or []
-        lines = group_words_into_lines(words)
+        lines = _merge_orphan_rupee_lines(group_words_into_lines(words))
         for line_words in lines:
             all_lines.append((page_number, line_words))
 
@@ -466,7 +524,7 @@ def _extract_slice_account_summary(
         if not words:
             continue
 
-        lines = group_words_into_lines(words)
+        lines = _merge_orphan_rupee_lines(group_words_into_lines(words))
 
         for line_words in lines:
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
