@@ -68,6 +68,7 @@ _BANK_DETECTION_RULES: tuple[DetectionRule, ...] = (
     DetectionRule("sbi", ("SBI",)),
     DetectionRule("idfc", ("IDFC",)),
     DetectionRule("slice", ("SLICE",)),
+    DetectionRule("kotak", ("KOTAK",)),
     DetectionRule(
         "ssfb",
         ("SURYODAY SMALL FINANCE BANK", "SURYODAY SFB", "SSFB RUPAY"),
@@ -116,7 +117,7 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         raw_data: Raw extraction payload.
 
     Returns:
-        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `equitas`, or `generic`.
+        One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `kotak`, `ssfb`, `bob`, `yesbank`, `equitas`, or `generic`.
     """
     header = _extract_detection_header(raw_data)
     # Use basename only for filename checks to avoid matching directory names
