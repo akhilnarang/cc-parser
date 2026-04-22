@@ -35,7 +35,8 @@ Primary goals:
 
 - `cc_parser/parsers/factory.py`
   - bank detection heuristics and dispatch,
-  - detection order comments are part of the compatibility contract.
+  - detection order comments are part of the compatibility contract,
+  - auto-detection should prefer first-page header branding plus filename over full statement body text.
 
 - `cc_parser/parsers/registry.py`
   - canonical parser registry used by the CLI/browser/factory.
@@ -119,6 +120,7 @@ When modifying parser logic:
 
 1. Default to extending `GenericParser`; override only the stages that differ (`_extract_transactions_with_debug`, `_extract_summary`, `_extract_due_date`, `_extract_total_amount_due`, `_extract_card_number`, `_extract_name`, or the lower-level parsing hooks).
 2. Register parser classes in `cc_parser/parsers/registry.py` and keep `factory.py` detection order comments accurate.
+   Detection should key off page-1 header/branding before broader transaction text.
 3. Preserve output schema compatibility.
 4. Date outputs must stay `DD/MM/YYYY`; use `cc_parser/parsers/tokens.py` dateutil-backed helpers instead of ad hoc `strptime` logic.
 5. Validate with `uv run cc-parser ... -vvv` and inspect `debug` deltas.
@@ -146,6 +148,7 @@ When modifying parser logic:
 - **Date format is DD/MM/YYYY**: `bank-email-fetcher` parses with `strptime(date, "%d/%m/%Y")`.
 - **Amount strings are comma-separated**: Expects `"25,000.00"`, strips commas to convert to Decimal.
 - **Detection order matters**: In `factory.py`, IndusInd before ICICI, HSBC/Jupiter before SBI. Wrong order causes misclassification.
+- **Detection scope matters too**: Auto-detection should prefer first-page header/branding and filename. Whole-statement text can contain merchant rows mentioning other banks.
 - **Registry order matters too**: CLI/browser bank lists come from `parsers/registry.py`; keep that order stable unless you intentionally change user-facing surfaces and tests.
 - **Pyodide package changes are coupled**: if parser imports need new pure-Python deps, update both `pyproject.toml` and `web/worker.js`.
 
@@ -154,4 +157,4 @@ When modifying parser logic:
 - **No OCR**: Only PDFs with a text layer. Scanned image-only PDFs produce empty/garbled output.
 - **Add-on card naming is heuristic**: Falls back to `ADDON <last 4 digits>` when names can't be extracted.
 - **Summary row rejection**: Recently added filter may undercount in edge cases where a real transaction resembles a summary line.
-- **Auto-detection can misclassify**: If statement text mentions another bank (e.g., payment to HDFC in an ICICI statement), the auto-detector may pick the wrong parser.
+- **Auto-detection can still misclassify**: Header text and filename reduce false positives, but unusual templates or missing branding can still route to the wrong parser.

@@ -74,6 +74,9 @@ class SurfaceAreaTests(unittest.TestCase):
     def test_bank_option_exposes_yesbank(self) -> None:
         self.assertEqual(BankOption.yesbank.value, "yesbank")
 
+    def test_bank_option_exposes_equitas(self) -> None:
+        self.assertEqual(BankOption.equitas.value, "equitas")
+
     def test_bank_choice_includes_ssfb(self) -> None:
         """Verify ssfb is a valid BankChoice value via get_parser."""
         raw_data = {"file": "test.pdf", "pages": []}
@@ -85,6 +88,12 @@ class SurfaceAreaTests(unittest.TestCase):
         raw_data = {"file": "test.pdf", "pages": []}
         parser = get_parser("yesbank", raw_data)
         self.assertEqual(parser.bank, "yesbank")
+
+    def test_bank_choice_includes_equitas(self) -> None:
+        """Verify equitas is a valid BankChoice value via get_parser."""
+        raw_data = {"file": "test.pdf", "pages": []}
+        parser = get_parser("equitas", raw_data)
+        self.assertEqual(parser.bank, "equitas")
 
     def test_factory_detects_and_returns_slice_parser(self) -> None:
         raw_data = {"file": "statement.pdf", "pages": [{"text": "SLICE statement"}]}
@@ -109,6 +118,20 @@ class SurfaceAreaTests(unittest.TestCase):
 
         self.assertEqual(detect_bank(raw_data), "yesbank")
         self.assertEqual(get_parser("yesbank", raw_data).bank, "yesbank")
+
+    def test_factory_detects_and_returns_equitas_parser(self) -> None:
+        raw_data = {
+            "file": "statement.pdf",
+            "pages": [
+                {
+                    "text": "EQUITAS SMALL FINANCE BANK\n"
+                    "16/04/2026 HDFC FASTAG RECHARGE IND RT123 +2 E ₹152.65 Dr."
+                }
+            ],
+        }
+
+        self.assertEqual(detect_bank(raw_data), "equitas")
+        self.assertEqual(get_parser("equitas", raw_data).bank, "equitas")
 
 
 class ParserContractSmokeTests(unittest.TestCase):
@@ -139,6 +162,80 @@ class ParserContractSmokeTests(unittest.TestCase):
         self.assertIsInstance(result, ParsedStatement)
         self.assertEqual(result.bank, "yesbank")
         self.assertEqual(result.file, "test.pdf")
+
+    def test_equitas_parser_returns_parsed_statement(self) -> None:
+        raw_data = self._make_minimal_raw_data(
+            "EQUITAS SMALL FINANCE BANK\nYour Credit Card Statement\n"
+        )
+        parser = get_parser("equitas", raw_data)
+        result = parser.parse(raw_data)
+        self.assertIsInstance(result, ParsedStatement)
+        self.assertEqual(result.bank, "equitas")
+        self.assertEqual(result.file, "test.pdf")
+
+    def test_equitas_parser_extracts_summary_and_transactions(self) -> None:
+        raw_data = {
+            "file": "equitas.pdf",
+            "pages": [
+                {
+                    "page_number": 1,
+                    "words": [],
+                    "text": (
+                        "Your Credit Card Statement - Apr 26\n"
+                        "Jane Example RUPAY SELFE CARD\n"
+                        "Card No: 1234********5678\n"
+                        "Statement Summary Total Due: Due Date:\n"
+                        "₹12,345.67 10 May 2026\n"
+                        "Opening Balance Payments/Credits Spends/Charges\n"
+                        "Minimum Due: ₹ 617.28\n"
+                        "₹1,000.00 ₹500.00 ₹11,845.67\n"
+                        "Reward Points Summary\n"
+                        "Opening Balance Reward Points Earned_E Bonus Points Earned_B Redeemed Adjusted Lapsed Closing Balance\n"
+                        "10 20 30 0 0 0 60\n"
+                        "Transaction History\n"
+                        "Date Transaction Details Reference Number Rewards Earned Amount\n"
+                        "JANE EXAMPLE : (123456XXXXXX5678)\n"
+                        "01/04/2026 123456789012 TEST MERCHANT 12345678901234567890 -10 B ₹100.00 Cr.\n"
+                        "02/04/2026 TEST STORE RT12345678901234567890 +25 B ₹500.00 Dr.\n"
+                        "Page : 1 of 2\n"
+                    ),
+                },
+                {
+                    "page_number": 2,
+                    "words": [],
+                    "text": (
+                        "Date Transaction Details Reference Number Rewards Earned Amount\n"
+                        "03/04/2026 CASHBACK PROMO 12345678901234567890 0 ₹50.00 Cr.\n"
+                        "04/04/2026 BILLER NAME 99 RT09876543210987654321 +35 E ₹100.00 Dr.\n"
+                        "***End of Statement***\n"
+                        "Page : 2 of 2\n"
+                    ),
+                },
+            ],
+        }
+
+        parser = get_parser("equitas", raw_data)
+        result = parser.parse(raw_data)
+
+        self.assertEqual(result.name, "JANE EXAMPLE")
+        self.assertEqual(result.card_number, "1234XXXXXXXX5678")
+        self.assertEqual(result.due_date, "10/05/2026")
+        self.assertEqual(result.statement_total_amount_due, "12,345.67")
+        self.assertEqual(result.reconciliation.header_previous_balance, "1,000.00")
+        self.assertEqual(
+            result.reconciliation.header_payments_credits_received, "500.00"
+        )
+        self.assertEqual(result.reconciliation.header_purchases_debit, "11,845.67")
+        self.assertEqual(len(result.transactions), 2)
+        self.assertEqual(len(result.payments_refunds), 2)
+        self.assertEqual(result.transactions[0].reward_points, "25")
+        self.assertEqual(result.transactions[1].reward_points, "35")
+        self.assertEqual(result.payments_refunds[0].reward_points, "-10")
+        self.assertEqual(result.payments_refunds[1].reward_points, "0")
+        self.assertEqual(result.overall_reward_points, "50")
+        self.assertEqual(result.reward_points_bonus, "30")
+        self.assertEqual(result.reward_points_balance, "60")
+        self.assertEqual(result.reward_points_line_total, "50")
 
 
 class PrivacyTests(unittest.TestCase):

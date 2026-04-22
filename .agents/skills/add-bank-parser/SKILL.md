@@ -120,8 +120,10 @@ Transaction:
 ## Gotchas
 
 - **Try generic first.** `GenericParser` already handles standard DD/MM/YYYY layouts and now exposes shared date/amount/credit hooks before you reach for a full custom parser.
+- **Prefer header-region detection.** Auto-detection should key off first-page branding/header content and filename before considering broader body text. Merchant rows can mention other banks and cause false positives.
 - **Use shared date helpers.** Keep output as `DD/MM/YYYY` via `cc_parser/parsers/tokens.py` (`parse_date`, `parse_multi_token_date`, `normalize_date_long`). If browser/Pyodide imports this code, remember `python-dateutil` must stay available there too.
 - **Detection order matters.** In `detect_bank()`: INDUSIND before ICICI (fine print mentions "ICICI Lombard"), "AXIS BANK" not just "AXIS" (avoids "TAXATION"), HSBC/Jupiter before SBI. Read existing `detect_bank()` comments.
+- **Watch for example/MITC pages.** Some issuers, including Equitas, include later illustration pages with fake totals and dates. Total due and due date should come from the page-1 summary, not generic whole-document regex matches.
 - **Credit classification is the hardest part.** Per-transaction Cr/Dr markers, section headers ("Payments & Refunds"), bare C/D (SBI), no marker on debits with CR only on credits (HSBC) — each bank is different. Study how existing parsers handle this.
 - **Multi-card statements.** Primary + add-on cards appear as sections with member headers. Parser must detect headers, group transactions by person, build `card_summaries` and `person_groups`. Use "ADDON <last 4 digits>" if names can't be extracted.
 - **Reconciliation is observability.** Don't coerce totals. Report the delta honestly. Non-zero delta means the parser missed something.

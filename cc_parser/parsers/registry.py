@@ -3,6 +3,7 @@
 from cc_parser.parsers.axis import AxisParser
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.bob import BobParser
+from cc_parser.parsers.equitas import EquitasParser
 from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.hdfc import HdfcParser
 from cc_parser.parsers.hsbc import HsbcParser
@@ -28,6 +29,7 @@ PARSER_REGISTRY: dict[str, type[StatementParser]] = {
     "ssfb": SsfbParser,
     "bob": BobParser,
     "yesbank": YesbankParser,
+    "equitas": EquitasParser,
     "generic": GenericParser,
 }
 

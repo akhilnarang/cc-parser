@@ -72,7 +72,7 @@ Parser selection (default: `auto`):
 uv run cc-parser /path/to/statement.pdf --bank hdfc
 ```
 
-Supported banks: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `generic`.
+Supported banks: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `equitas`, `generic`.
 
 Extra debug bundle (local troubleshooting only; redact before sharing):
 

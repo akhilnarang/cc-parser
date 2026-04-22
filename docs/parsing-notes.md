@@ -5,7 +5,7 @@ This document explains the statement structures the parser handles and the norma
 ## Scope
 
 - Input: password-protected or plain PDF credit card statements.
-- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `generic`.
+- Supported parsing profiles: `hdfc`, `icici`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `equitas`, `generic`.
 - Output: normalized JSON for transactions, totals, and reconciliation.
 
 Privacy handling:
@@ -28,6 +28,8 @@ Extraction caveats that parser accounts for:
 - OCR/font artifacts (`(cid:...)`, duplicated characters, broken spacing).
 - Mixed separators (`|`, irregular spaces, merged tokens).
 - Credit markers (for example, `CR` or bare `C`/`D` for SBI, `DR`/`CR` for IDFC, `CR` suffix for HSBC, `Cr`/`Dr` for Axis) that indicate refunds/payments.
+- Page-1 bank branding that should be preferred over merchant text when auto-detecting the issuer.
+- Equitas-style page-1 summaries where `Total Due` / `Due Date` live above the transaction grid and MITC/example pages later in the PDF contain unrelated sample totals.
 
 ## Normalized Output Model
 
