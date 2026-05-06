@@ -44,6 +44,23 @@ NON_MEMBER_HEADERS = {
     "DINERS BLACK CREDIT CARD STATEMENT",
 }
 
+# English stop-words and marketing fragments that occur in promotional taglines
+# (e.g. ICICI's "For exclusive offers, visit ...") but never in a real
+# cardholder name. Checked word-by-word, so substrings inside real names
+# (e.g. "ANDREW" containing "AND") are unaffected.
+NON_NAME_WORDS = {
+    "FOR",
+    "AND",
+    "THE",
+    "WITH",
+    "FROM",
+    "EXCLUSIVE",
+    "OFFER",
+    "OFFERS",
+    "VISIT",
+    "APPLY",
+}
+
 
 def normalize_card_token(token: str) -> str:
     """Keep only card-mask characters and normalize mask symbol to ``X``."""
@@ -203,6 +220,8 @@ def looks_like_member_header(tokens: list[str]) -> str | None:
         for word in cleaned_words
     ):
         return None
+    if any(word in NON_NAME_WORDS for word in cleaned_words):
+        return None
     return candidate
 
 
@@ -275,6 +294,7 @@ __all__ = [
     "CARD_TOKEN_WITH_SEP_RE",
     "CARD_LABEL_WORDS",
     "NON_MEMBER_HEADERS",
+    "NON_NAME_WORDS",
     "normalize_card_token",
     "looks_like_card_token",
     "mask_card_token",
