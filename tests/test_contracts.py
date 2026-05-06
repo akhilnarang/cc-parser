@@ -48,6 +48,114 @@ class DueDateContractTests(unittest.TestCase):
 
         self.assertEqual(extract_due_date_from_pages(pages), "05/04/2026")
 
+    def test_extract_due_date_from_pages_handles_doubled_letter_header(self) -> None:
+        # Why: ICICI Amazon Pay renders the page-1 header with a stylized
+        # font that pdfplumber extracts as DDUUEE / DDAATTEE / PPAAYYMMEENNTT,
+        # and the right column carries informational notes at the same y.
+        pages = [
+            {
+                "words": [
+                    {"text": "PPAAYYMMEENNTT", "doctop": 10, "x0": 10, "x1": 75},
+                    {"text": "DDUUEE", "doctop": 10, "x0": 78, "x1": 105},
+                    {"text": "DDAATTEE", "doctop": 10, "x0": 108, "x1": 142},
+                    # Right-column note merged onto the same logical line.
+                    {"text": "To", "doctop": 10, "x0": 220, "x1": 232},
+                    {"text": "update", "doctop": 10, "x0": 235, "x1": 270},
+                    {"text": "May", "doctop": 30, "x0": 12, "x1": 36},
+                    {"text": "23,", "doctop": 30, "x0": 39, "x1": 56},
+                    {"text": "2026", "doctop": 30, "x0": 59, "x1": 82},
+                ]
+            }
+        ]
+
+        self.assertEqual(extract_due_date_from_pages(pages), "23/05/2026")
+
+    def test_extract_due_date_from_pages_skips_statement_date_header(self) -> None:
+        # Why: "STATEMENT DATE" tokens contain "DATE" but not "DUE";
+        # must not be mistaken for the due-date header even when doubled.
+        pages = [
+            {
+                "words": [
+                    {"text": "SSTTAATTEEMMEENNTT", "doctop": 10, "x0": 10, "x1": 90},
+                    {"text": "DDAATTEE", "doctop": 10, "x0": 95, "x1": 130},
+                    {"text": "May", "doctop": 30, "x0": 12, "x1": 35},
+                    {"text": "5,", "doctop": 30, "x0": 38, "x1": 50},
+                    {"text": "2026", "doctop": 30, "x0": 53, "x1": 78},
+                ]
+            }
+        ]
+
+        self.assertIsNone(extract_due_date_from_pages(pages))
+
+    def test_extract_due_date_from_pages_ignores_back_page_examples(self) -> None:
+        # Why: ICICI statements include illustrative interest-calculation samples
+        # (e.g., "Payment due date - Oct 26, 2023") on later pages. The page-aware
+        # extractor must bound its scan so a back-page example cannot hijack it.
+        pages = [
+            {"words": []},  # page 1: no header (e.g., scanned/empty page)
+            {"words": []},  # page 2: still nothing
+            {
+                "words": [
+                    {"text": "Payment", "doctop": 10, "x0": 10, "x1": 60},
+                    {"text": "due", "doctop": 10, "x0": 63, "x1": 85},
+                    {"text": "date", "doctop": 10, "x0": 88, "x1": 115},
+                    {"text": "-", "doctop": 10, "x0": 118, "x1": 125},
+                    {"text": "Oct", "doctop": 10, "x0": 128, "x1": 150},
+                    {"text": "26,", "doctop": 10, "x0": 153, "x1": 172},
+                    {"text": "2023", "doctop": 10, "x0": 175, "x1": 200},
+                ]
+            },
+        ]
+
+        self.assertIsNone(extract_due_date_from_pages(pages))
+
+    def test_generic_extract_due_date_regex_fallback_is_page_bounded(self) -> None:
+        # Why: even when the page-layout extractor finds nothing, the regex
+        # fallback must not drift to back-page educational examples.
+        from cc_parser.parsers.generic import GenericParser
+
+        parser = GenericParser()
+        # Pages 1-2 have no due-date header at all; page 3 carries the example.
+        pages = [
+            {"words": [], "text": "(blank summary)"},
+            {"words": [], "text": "(more spend lines)"},
+            {
+                "words": [],
+                "text": "4 Payment due date - Oct 26, 2023 (illustrative example)",
+            },
+        ]
+        full_text = "\n".join(str(p["text"]) for p in pages)
+
+        self.assertIsNone(parser._extract_due_date(full_text, pages))
+
+    def test_generic_extract_due_date_prefers_page_layout_over_full_text(self) -> None:
+        # Why: ICICI statements include illustrative interest-calculation examples
+        # in the back ("Payment due date - Oct 26, 2023"). The full-text regex
+        # would match those samples, so page-layout extraction must take priority
+        # so the actual page-1 header wins.
+        from cc_parser.parsers.generic import GenericParser
+
+        parser = GenericParser()
+        full_text = (
+            "PPAAYYMMEENNTT DDUUEE DDAATTEE\nMay 23, 2026\n"
+            "...later in the statement...\n"
+            "4 Payment due date - Oct 26, 2023\n"
+        )
+        pages = [
+            {
+                "words": [
+                    {"text": "PPAAYYMMEENNTT", "doctop": 10, "x0": 10, "x1": 75},
+                    {"text": "DDUUEE", "doctop": 10, "x0": 78, "x1": 105},
+                    {"text": "DDAATTEE", "doctop": 10, "x0": 108, "x1": 142},
+                    {"text": "May", "doctop": 30, "x0": 12, "x1": 36},
+                    {"text": "23,", "doctop": 30, "x0": 39, "x1": 56},
+                    {"text": "2026", "doctop": 30, "x0": 59, "x1": 82},
+                ]
+            }
+        ]
+
+        self.assertEqual(parser._extract_due_date(full_text, pages), "23/05/2026")
+
 
 class SurfaceAreaTests(unittest.TestCase):
     """Verify CLI/parser exposure stays aligned."""

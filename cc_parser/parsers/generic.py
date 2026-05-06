@@ -32,6 +32,7 @@ from cc_parser.parsers.extraction import (
 )
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
 from cc_parser.parsers.summary import (
+    _DUE_DATE_PAGE_LIMIT,
     build_card_summaries,
     build_reconciliation,
     extract_due_date,
@@ -91,7 +92,17 @@ class GenericParser(StatementParser):
     def _extract_due_date(
         self, full_text: str, pages: list[dict[str, Any]]
     ) -> str | None:
-        return extract_due_date(full_text) or extract_due_date_from_pages(pages)
+        # Why: page-layout extraction is anchored to the actual header position,
+        # so it cannot drift onto illustrative dates in the back of the PDF
+        # (e.g., ICICI's "Payment due date - Oct 26, 2023" interest example).
+        # The regex fallback is also bounded to early pages so it cannot match
+        # those same examples when the page-aware path returns nothing.
+        if found := extract_due_date_from_pages(pages):
+            return found
+        early_text = "\n".join(
+            str(page.get("text", "")) for page in pages[:_DUE_DATE_PAGE_LIMIT]
+        )
+        return extract_due_date(early_text or full_text)
 
     def _extract_total_amount_due(
         self, full_text: str, pages: list[dict[str, Any]]

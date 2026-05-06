@@ -6,6 +6,7 @@ from cc_parser.parsers.summary.grouping import (
 )
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
 from cc_parser.parsers.summary.totals import (
+    _DUE_DATE_PAGE_LIMIT,
     extract_due_date,
     extract_due_date_from_pages,
     extract_name,
@@ -14,6 +15,7 @@ from cc_parser.parsers.summary.totals import (
 )
 
 __all__ = [
+    "_DUE_DATE_PAGE_LIMIT",
     "build_card_summaries",
     "build_reconciliation",
     "extract_due_date",
