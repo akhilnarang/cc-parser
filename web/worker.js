@@ -16,7 +16,7 @@
 /* global importScripts, loadPyodide */
 
 // Pyodide CDN — self-hosted for prod (build.sh patches this), jsdelivr for dev.
-const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.29.3/full";
+const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v314.0.0/full";
 const PYODIDE_JS = `${PYODIDE_BASE}/pyodide.js`;
 
 let pyodide = null;
@@ -52,10 +52,16 @@ async function initPyodide() {
   // pdfminer.six version (older than what micropip resolves) and
   // depends on pypdfium2 (native C, no WASM wheel — not needed since
   // we never call page.to_image()).
+  // Versions pinned to the resolved set in uv.lock so statement bytes and
+  // passwords never flow through an unexpected dependency build.
   await pyodide.runPythonAsync(`
 import micropip
-await micropip.install(["pypdf", "pdfminer.six", "python-dateutil"])
-await micropip.install("pdfplumber", deps=False)
+await micropip.install([
+    "pypdf==6.10.2",
+    "pdfminer.six==20251230",
+    "python-dateutil==2.9.0.post0",
+])
+await micropip.install("pdfplumber==0.11.9", deps=False)
 `);
 
   // Mount cc_parser source files into the Pyodide virtual filesystem.

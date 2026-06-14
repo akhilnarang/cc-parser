@@ -25,7 +25,7 @@ cp "$ROOT/web/index.html" "$ROOT/web/app.js" "$ROOT/web/storage.js" "$DIST/"
 
 # Copy worker.js with adjusted fetch path and production Pyodide URL
 sed -e 's|\.\./cc_parser|./cc_parser|g' \
-    -e 's|https://cdn.jsdelivr.net/pyodide/v0.29.3/full|https://files.akhilnarang.dev/cdn/pyodide/v0.29.3|g' \
+    -e 's|https://cdn.jsdelivr.net/pyodide/v314.0.0/full|https://files.akhilnarang.dev/cdn/pyodide/v314.0.0|g' \
     "$ROOT/web/worker.js" > "$DIST/worker.js"
 
 # Copy only the Python files the browser path needs (no cli.py, no extractor.py)

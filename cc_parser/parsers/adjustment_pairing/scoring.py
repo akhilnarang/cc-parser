@@ -1,7 +1,7 @@
 """Similarity metrics and scoring helpers for adjustment pairing."""
 
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import re
 from typing import Literal
 
@@ -111,8 +111,7 @@ def calculate_amount_delta(
         else:
             delta_pct_str = None
         return delta, format_amount(delta), delta_pct_str
-    # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-    except ValueError, Exception:
+    except ValueError, InvalidOperation, ArithmeticError, TypeError:
         return Decimal("0"), "0.00", None
 
 
@@ -145,8 +144,7 @@ def determine_kind(
                 and merchant_sim >= PARTIAL_REFUND_MIN_MERCHANT_SIMILARITY
             ):
                 return "partial_refund"
-        # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-        except ValueError, Exception:
+        except ValueError, TypeError:
             pass
 
     return "possible_refund"
@@ -216,8 +214,7 @@ def score_candidate_pair(
             if delta_pct > 50:
                 score += PENALTY_LARGE_AMOUNT_DELTA
                 reasons.append(f"large_amount_delta_{delta_pct:.1f}%")
-        # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
-        except ValueError, Exception:
+        except ValueError, TypeError:
             pass
 
     debit_tokens = tokenize(debit.narration or "")

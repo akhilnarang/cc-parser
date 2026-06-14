@@ -86,7 +86,6 @@ def should_early_prune(debit: Transaction, credit: Transaction) -> bool:
 
         return False
 
-    # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
     except ValueError, TypeError, ArithmeticError:
         return False
 

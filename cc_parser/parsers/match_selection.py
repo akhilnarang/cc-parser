@@ -37,7 +37,6 @@ def select_best_non_overlapping_pairs(
         # Parse amount_delta for comparison
         try:
             delta = abs(float(pair.amount_delta.replace(",", "")))
-        # TODO(pep758): drop the parentheses once Pyodide ships Python 3.14.
         except ValueError, AttributeError:
             delta = 999999.0
 

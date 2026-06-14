@@ -319,6 +319,30 @@ class TestScoring:
         # Should have person conflict penalty
         assert any("person_conflict" in r for r in reasons)
 
+    def test_malformed_amount_returns_safe_default(self):
+        """A garbage amount falls back to the safe zero delta, not an exception."""
+        debit = Transaction(
+            date="01/01/2024",
+            narration="SWIGGY",
+            amount="not-a-number",
+            transaction_type="debit",
+            transaction_id="txn_001",
+        )
+        credit = Transaction(
+            date="02/01/2024",
+            narration="REFUND SWIGGY",
+            amount="also-garbage",
+            transaction_type="credit",
+            transaction_id="txn_002",
+        )
+
+        delta_decimal, delta_str, delta_pct = calculate_amount_delta(debit, credit)
+
+        assert delta_decimal == Decimal("0")
+        assert delta_str == "0.00"
+        # Both amounts coerce to 0, so no percentage is reported.
+        assert delta_pct is None
+
 
 class TestKindDetermination:
     """Test pair kind classification."""
