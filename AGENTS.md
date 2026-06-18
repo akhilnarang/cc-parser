@@ -59,6 +59,12 @@ Primary goals:
 - `cc_parser/parsers/idfc.py`
   - IDFC FIRST Bank extraction (DD Mon YY dates, DR/CR markers, r-prefixed amounts, statement summary).
 
+- `cc_parser/parsers/slice.py`
+  - Slice profile wrapper (multi-token dates, bare C/D markers).
+
+- `cc_parser/parsers/kotak.py`
+  - Kotak Mahindra Bank extraction (DD-Mon-YYYY dates, TAD/MAD summary, transaction parsing).
+
 - `cc_parser/parsers/ssfb.py`
   - Suryoday SFB extraction (page-1 bounded summary parsing, DD-Mon-YYYY normalization, MITC/example-page isolation).
 

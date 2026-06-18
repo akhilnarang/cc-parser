@@ -11,6 +11,7 @@ from cc_parser.parsers.icici import IciciParser
 from cc_parser.parsers.idfc import IdfcParser
 from cc_parser.parsers.indusind import IndusindParser
 from cc_parser.parsers.jupiter import JupiterParser
+from cc_parser.parsers.kotak import KotakParser
 from cc_parser.parsers.sbi import SbiParser
 from cc_parser.parsers.slice import SliceParser
 from cc_parser.parsers.ssfb import SsfbParser
@@ -26,6 +27,7 @@ PARSER_REGISTRY: dict[str, type[StatementParser]] = {
     "axis": AxisParser,
     "jupiter": JupiterParser,
     "slice": SliceParser,
+    "kotak": KotakParser,
     "ssfb": SsfbParser,
     "bob": BobParser,
     "yesbank": YesbankParser,

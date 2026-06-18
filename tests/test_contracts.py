@@ -185,6 +185,9 @@ class SurfaceAreaTests(unittest.TestCase):
     def test_bank_option_exposes_equitas(self) -> None:
         self.assertEqual(BankOption.equitas.value, "equitas")
 
+    def test_bank_option_exposes_kotak(self) -> None:
+        self.assertEqual(BankOption.kotak.value, "kotak")
+
     def test_bank_choice_includes_ssfb(self) -> None:
         """Verify ssfb is a valid BankChoice value via get_parser."""
         raw_data = {"file": "test.pdf", "pages": []}
@@ -202,6 +205,12 @@ class SurfaceAreaTests(unittest.TestCase):
         raw_data = {"file": "test.pdf", "pages": []}
         parser = get_parser("equitas", raw_data)
         self.assertEqual(parser.bank, "equitas")
+
+    def test_bank_choice_includes_kotak(self) -> None:
+        """Verify kotak is a valid BankChoice value via get_parser."""
+        raw_data = {"file": "test.pdf", "pages": []}
+        parser = get_parser("kotak", raw_data)
+        self.assertEqual(parser.bank, "kotak")
 
     def test_factory_detects_and_returns_slice_parser(self) -> None:
         raw_data = {"file": "statement.pdf", "pages": [{"text": "SLICE statement"}]}
@@ -240,6 +249,15 @@ class SurfaceAreaTests(unittest.TestCase):
 
         self.assertEqual(detect_bank(raw_data), "equitas")
         self.assertEqual(get_parser("equitas", raw_data).bank, "equitas")
+
+    def test_factory_detects_and_returns_kotak_parser(self) -> None:
+        raw_data = {
+            "file": "statement.pdf",
+            "pages": [{"text": "KOTAK MAHINDRA BANK Credit Card Statement"}],
+        }
+
+        self.assertEqual(detect_bank(raw_data), "kotak")
+        self.assertEqual(get_parser("kotak", raw_data).bank, "kotak")
 
 
 class ParserContractSmokeTests(unittest.TestCase):
@@ -344,6 +362,55 @@ class ParserContractSmokeTests(unittest.TestCase):
         self.assertEqual(result.reward_points_bonus, "30")
         self.assertEqual(result.reward_points_balance, "60")
         self.assertEqual(result.reward_points_line_total, "50")
+
+    def test_kotak_parser_returns_parsed_statement(self) -> None:
+        raw_data = {
+            "file": "test.pdf",
+            "pages": [
+                {
+                    "page_number": 1,
+                    "words": [],
+                    "text": (
+                        "JOHN DOE Monthly statement for your League Credit Card X1234\n"
+                        "Statement Summary\n"
+                        "Total Amount Due (TAD) Rs. 4,186.50\n"
+                        "Minimum Amount Due (MAD) Rs. 209.33\n"
+                        "Due Date: 08-May-2026\n"
+                        "Previous statement dues 0.00\n"
+                        "Purchases made in this cycle 4,186.50\n"
+                        "Other fees & charges 0.00\n"
+                        "Payments and Other Credits 0.00\n"
+                        "Total Amount Due 4,186.50\n"
+                    ),
+                },
+                {
+                    "page_number": 2,
+                    "words": [],
+                    "text": (
+                        "Transactions Details from 21-Mar-2026 to 20-Apr-2026\n"
+                        "Date Description Spends Category Amount (Rs.)\n"
+                        "Purchases made in this cycle - Primary Card X1234\n"
+                        "26-Mar-2026 BLINKIT GURGAON IN Grocery 912.50\n"
+                        "27-Mar-2026 SWIGGY HYDERABAD IN Food 543.00\n"
+                        "Total Purchases 1,455.50\n"
+                    ),
+                },
+            ],
+        }
+
+        parser = get_parser("kotak", raw_data)
+        result = parser.parse(raw_data)
+
+        self.assertIsInstance(result, ParsedStatement)
+        self.assertEqual(result.bank, "kotak")
+        self.assertEqual(result.file, "test.pdf")
+        self.assertEqual(result.name, "JOHN DOE")
+        self.assertEqual(result.due_date, "08/05/2026")
+        self.assertEqual(result.statement_total_amount_due, "4186.50")
+        self.assertEqual(len(result.transactions), 2)
+        self.assertEqual(result.transactions[0].amount, "912.50")
+        self.assertEqual(result.transactions[0].transaction_type, "debit")
+        self.assertEqual(result.transactions[1].amount, "543.00")
 
 
 class PrivacyTests(unittest.TestCase):
