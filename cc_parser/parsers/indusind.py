@@ -361,20 +361,38 @@ def _extract_indusind_transactions(
             else:
                 is_credit = is_credit_section
 
-            # Find the amount: rightmost amount-matching token before DR/CR
+            # Find the amount: the charge is paired with the first (leftmost)
+            # DR/CR marker. A running/closing total column can bleed onto the
+            # row within the line y-tolerance, adding a second "AMOUNT DR" pair
+            # to the right of the real one; picking the rightmost would steal it.
             search_end = len(tokens)
             if last_token in {"CR", "DR", "C", "D"}:
                 search_end = len(tokens) - 1
 
             amount_idx = -1
-            for i in range(search_end - 1, 0, -1):
-                t = tokens[i]
-                # Strip merged CR/DR suffix before checking for amount
-                if t.upper().endswith(("CR", "DR")) and len(t) > 2:
-                    t = t[:-2]
-                if parse_amount_token(t) is not None:
-                    amount_idx = i
-                    break
+            for i in range(1, search_end):
+                if tokens[i].upper() in {"CR", "DR", "C", "D"}:
+                    # Standalone marker: the amount is the token before it.
+                    prev = tokens[i - 1]
+                    if parse_amount_token(prev) is not None:
+                        amount_idx = i - 1
+                        break
+                elif tokens[i].upper().endswith(("CR", "DR")) and len(tokens[i]) > 2:
+                    # Marker merged into the amount ("161.00DR").
+                    if parse_amount_token(tokens[i][:-2]) is not None:
+                        amount_idx = i
+                        break
+
+            # Fallback (no inline marker, e.g. a marker-less credit row):
+            # rightmost amount-matching token before any trailing marker.
+            if amount_idx == -1:
+                for i in range(search_end - 1, 0, -1):
+                    t = tokens[i]
+                    if t.upper().endswith(("CR", "DR")) and len(t) > 2:
+                        t = t[:-2]
+                    if parse_amount_token(t) is not None:
+                        amount_idx = i
+                        break
 
             if amount_idx == -1 or amount_idx <= 1:
                 rejected_date_lines.append(
