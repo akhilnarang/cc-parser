@@ -60,6 +60,12 @@ class GenericParser(StatementParser):
 
     bank = "generic"
 
+    # Whether to drop words rendered left of the description column (inline
+    # action controls sharing a transaction's baseline). The column is read off
+    # the page's own table header, so profiles opt in once that header and the
+    # lanes around it are known; leaving it off preserves prior behavior.
+    strip_action_lane = False
+
     def __init__(self) -> None:
         self._last_txn_debug: dict[str, Any] | None = None
         self._last_transactions: list[Transaction] | None = None
@@ -75,7 +81,7 @@ class GenericParser(StatementParser):
     def _extract_transactions_with_debug(
         self, pages: list[dict[str, Any]]
     ) -> tuple[list[Transaction], dict[str, Any]]:
-        return _extract_transactions_with_debug_impl(pages)
+        return _extract_transactions_with_debug_impl(pages, self.strip_action_lane)
 
     def _normalize_transactions(
         self,

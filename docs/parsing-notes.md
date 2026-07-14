@@ -64,6 +64,34 @@ Key top-level fields in compact output:
 5. Classify rows as debit or credit using table/context signals.
 6. Attach card/person context based on nearby section headers.
 
+### Inline Action Controls
+
+Some templates print an inline action control — a "convert to instalment"
+button, a promo tag — as a text run on the transaction's own baseline, in a
+lane between the time column and the description column. Step 2 is
+column-blind, so the control's word is swept into the narration and the row
+reads as if the merchant were named after it.
+
+The control is identified by position, never by its text: descriptions
+legitimately begin with the same words the buttons carry (an instalment
+processing fee, a conversion adjustment), and matching on the string would
+destroy exactly the rows it appears to fix.
+
+The description column is read off the page's own table header — the left edge
+of its `TRANSACTION DESCRIPTION` cell — and a word in the narration span that
+starts left of that column is dropped. Deriving the column from the rows
+instead does not work: a sparse page can carry more control rows than plain
+ones, and a description that opens with a short word looks like a control to
+any frequency rule. Pages with no header, or with two that disagree, are left
+alone.
+
+Removal is opt-in per profile (`strip_action_lane`), since it presumes nothing
+legitimate renders left of the description column. HDFC opts in.
+
+Stripping may change what a narration says; it may never change whether a
+transaction is emitted. The row as printed decides that, and stripped text is
+used only where it independently passes the same gate.
+
 ## Add-on Handling
 
 - Card switches are detected from masked card rows in statement tables.
