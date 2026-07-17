@@ -112,6 +112,13 @@ class HdfcParser(GenericParser):
 
     bank = "hdfc"
 
+    # HDFC renders a convert-to-instalment control as a text run on the
+    # transaction's own baseline, in a lane between the time column and the
+    # description column, and repeats the table's column header on every page
+    # that carries rows. Both were measured on the HDFC layouts, so the
+    # header-anchored removal is enabled for this profile.
+    strip_action_lane = True
+
     def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Parse HDFC statement payload using shared generic logic.
 
