@@ -22,10 +22,32 @@ def build_reconciliation(
     debit_transactions: list[Transaction],
     credit_transactions: list[Transaction],
     summary_fields: StatementSummary,
+    *,
+    smart_credit_transactions: list[Transaction] | None = None,
 ) -> Reconciliation:
-    """Build reconciliation metrics across statement/header/parsed totals."""
+    """Build reconciliation metrics across statement/header/parsed totals.
+
+    Args:
+        statement_total_amount_due: Current statement amount payable.
+        debit_transactions: All parsed debit rows.
+        credit_transactions: All parsed credit rows.
+        summary_fields: Values extracted from the statement summary.
+        smart_credit_transactions: Optional credits that affect the payable
+            amount. Bank-internal transfer credits remain in parsed totals but
+            can be excluded from smart due math.
+
+    Returns:
+        Reconciliation totals and diagnostic deltas.
+    """
     debit_total = sum_amounts(debit_transactions)
     credit_total = sum_amounts(credit_transactions)
+    effective_credit_transactions = (
+        credit_transactions
+        if smart_credit_transactions is None
+        else smart_credit_transactions
+    )
+    smart_credit_total = sum_amounts(effective_credit_transactions)
+    smart_excluded_credit_total = credit_total - smart_credit_total
 
     statement_due = _to_decimal(statement_total_amount_due)
     parsed_net_due = debit_total - credit_total
@@ -36,14 +58,14 @@ def build_reconciliation(
     received = _to_decimal(summary_fields.payments_credits_received)
     header_computed_due = prev_dues + purchases + finance - received
 
-    smart_expected = prev_dues + debit_total + finance - credit_total
+    smart_expected = prev_dues + debit_total + finance - smart_credit_total
     smart_delta = statement_due - smart_expected
 
     prev_balance_cleared_date: str | None = None
     excess_after_clearing: str | None = None
-    if prev_dues > 0 and credit_transactions:
+    if prev_dues > 0 and effective_credit_transactions:
         dated_credits = []
-        for txn in credit_transactions:
+        for txn in effective_credit_transactions:
             dt = parse_date_value(txn.date)
             amount = parse_amount(str(txn.amount or "0"))
             if dt and amount > 0:
@@ -57,7 +79,7 @@ def build_reconciliation(
                 prev_balance_cleared_date = dt.strftime("%d/%m/%Y")
                 break
 
-        excess_after_clearing = format_amount(credit_total - prev_dues)
+        excess_after_clearing = format_amount(smart_credit_total - prev_dues)
 
     return Reconciliation(
         statement_total_amount_due=statement_total_amount_due,
@@ -71,6 +93,8 @@ def build_reconciliation(
         header_computed_due_estimate=format_amount(header_computed_due),
         smart_expected_total=format_amount(smart_expected),
         smart_delta=format_amount(smart_delta),
+        smart_credit_total=format_amount(smart_credit_total),
+        smart_excluded_credit_total=format_amount(smart_excluded_credit_total),
         prev_balance_cleared_date=prev_balance_cleared_date,
         excess_paid_after_clearing=excess_after_clearing,
         delta_statement_vs_parsed_debit=format_amount(statement_due - debit_total),

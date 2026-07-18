@@ -286,7 +286,7 @@ def print_compact_table(output_data: ParsedStatement) -> None:
             f"  (per-line sum: {line_total})"
         )
     else:
-        console.print(f"Reward Points (debits only): {overall_reward_points}")
+        console.print(f"Reward Points (earned this cycle): {overall_reward_points}")
     bonus_pts = output_data.reward_points_bonus
     # Suppress the scalar line when an itemized breakdown follows — the
     # Rewards Program Points Summary table below already shows the total.
@@ -329,8 +329,17 @@ def print_compact_table(output_data: ParsedStatement) -> None:
         "Parsed Credit Total",
         str(reconciliation.parsed_credit_total or ""),
     )
+    if parse_amount(reconciliation.smart_excluded_credit_total) != 0:
+        recon_table.add_row(
+            "Internal Credits Excluded from Due Math",
+            str(reconciliation.smart_excluded_credit_total),
+        )
+        recon_table.add_row(
+            "Credits Applied to Due Math",
+            str(reconciliation.smart_credit_total),
+        )
     recon_table.add_row(
-        "Smart Expected Total (prev + debits + fees - credits)",
+        "Smart Expected Total (prev + debits + fees - applicable credits)",
         str(reconciliation.smart_expected_total or ""),
     )
     recon_table.add_row(

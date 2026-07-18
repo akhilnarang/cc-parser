@@ -26,7 +26,13 @@ from cc_parser.parsers.cards import (
     split_by_transaction_type,
 )
 from cc_parser.parsers.extraction import group_words_into_lines
-from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
+from cc_parser.parsers.models import (
+    CardSummary,
+    ParsedStatement,
+    PersonGroup,
+    StatementSummary,
+    Transaction,
+)
 from cc_parser.parsers.narration import (
     clean_narration_artifacts,
 )
@@ -44,6 +50,7 @@ from cc_parser.parsers.tokens import (
     format_amount,
     normalize_amount,
     normalize_token,
+    parse_amount,
     parse_amount_token,
     sum_amounts,
     sum_points,
@@ -60,6 +67,14 @@ HSBC_STOP_HEADERS = {
 
 # Regex for HSBC DDMMM date format (e.g. "27FEB", "15MAR", "01JAN")
 _DDMMM_RE = re.compile(r"^(\d{2})([A-Z]{3})$", re.IGNORECASE)
+
+# Detail printed directly below an EMI principal/interest posting. These lines
+# identify internal loan-to-statement transfer credits, not payments/refunds.
+_HSBC_INSTALLMENT_DETAIL_RE = re.compile(
+    r"^\d+(?:ST|ND|RD|TH)\s+OF\s+\d+\s+INSTALLMENTS?\s+"
+    r"(?:PRINCIPAL|INTEREST)$",
+    re.IGNORECASE,
+)
 
 # Regex for HSBC card number pattern: ``NNxx xxxx xxxx NNNN``
 # Lowercase xx's with spaces between groups
@@ -326,60 +341,83 @@ def _has_cr_marker(tokens: list[str]) -> bool:
     return False
 
 
+def _extract_hsbc_amount_from_tokens(tokens: list[str]) -> str | None:
+    """Return the rightmost HSBC amount in a visual line.
+
+    Args:
+        tokens: Normalized words from one visual line.
+
+    Returns:
+        A normalized amount, negated when the line carries a ``CR`` marker.
+    """
+    for raw_token in reversed(tokens):
+        token = raw_token
+        if token.upper().endswith(("CR", "DR")) and len(token) > 2:
+            token = token[:-2]
+        if amount := parse_amount_token(token):
+            result = normalize_amount(amount)
+            return f"-{result}" if _has_cr_marker(tokens) else result
+    return None
+
+
 def _extract_hsbc_total_amount_due(
     full_text: str, pages: list[dict[str, Any]]
 ) -> str | None:
-    """Extract total amount due from HSBC statement.
+    """Extract total payment due from HSBC's page-1 payment summary.
 
-    Looks for amount near ``Total Payment Due`` or ``NET OUTSTANDING BALANCE``
-    in the PAYMENT SUMMARY section.
+    ``Net outstanding balance`` includes principal from future loan instalments
+    and is not the amount payable for the current statement. Some HSBC PDFs
+    render payment-summary labels as non-extractable text, leaving the total due
+    on the same visual line as the statement period; that positional structure
+    is therefore the primary unlabeled fallback.
     """
-    # Line-level search for "Total Payment Due" or "Net Outstanding Balance"
-    for page in pages[:3]:
-        lines = group_words_into_lines(page.get("words") or [])
-        for i, line_words in enumerate(lines):
-            tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
-            joined = clean_space(" ".join(tokens)).upper()
+    first_page = pages[0] if pages else {}
+    lines = group_words_into_lines(first_page.get("words") or [])
 
-            if "TOTAL PAYMENT DUE" in joined or "NET OUTSTANDING BALANCE" in joined:
-                # Look for amount on same line
-                for t in reversed(tokens):
-                    if t.upper().endswith(("CR", "DR")) and len(t) > 2:
-                        t = t[:-2]
-                    amt = parse_amount_token(t)
-                    if amt:
-                        result = normalize_amount(amt)
-                        if _has_cr_marker(tokens):
-                            result = f"-{result}"
-                        return result
+    # Prefer the explicit payment-summary label when its font is extractable.
+    for i, line_words in enumerate(lines):
+        tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+        joined = clean_space(" ".join(tokens)).upper()
+        if "TOTAL PAYMENT DUE" not in joined:
+            continue
+        if amount := _extract_hsbc_amount_from_tokens(tokens):
+            return amount
+        if i + 1 < len(lines):
+            next_tokens = [
+                normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
+            ]
+            if amount := _extract_hsbc_amount_from_tokens(next_tokens):
+                return amount
 
-                # Check next line
-                if i + 1 < len(lines):
-                    next_tokens = [
-                        normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
-                    ]
-                    for t in next_tokens:
-                        if t.upper().endswith(("CR", "DR")) and len(t) > 2:
-                            t = t[:-2]
-                        amt = parse_amount_token(t)
-                        if amt:
-                            result = normalize_amount(amt)
-                            if _has_cr_marker(next_tokens):
-                                result = f"-{result}"
-                            return result
+    # In the standard two-column PAYMENT SUMMARY, the statement period and
+    # total payment due occupy the same visual row. The dark cell labels may be
+    # absent from extracted text even though both values remain available.
+    period_re = re.compile(
+        r"\b\d{1,2}\s+[A-Z]{3}\s+\d{4}\s+TO\s+"
+        r"\d{1,2}\s+[A-Z]{3}\s+\d{4}\b",
+        flags=re.IGNORECASE,
+    )
+    for line_words in lines:
+        tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+        joined = clean_space(" ".join(tokens))
+        if period_re.search(joined):
+            if amount := _extract_hsbc_amount_from_tokens(tokens):
+                return amount
 
-    # Text-level fallback
+    # Keep text fallback bounded to page 1 so tariff examples cannot leak in.
+    first_page_text = str(first_page.get("text", ""))
     match = re.search(
-        r"(?:Total\s+Payment\s+Due|Net\s+Outstanding\s+Balance)\s*[:\-]?\s*([\d,]+\.\d{2})\s*(CR)?",
-        full_text,
+        r"Total\s+Payment\s+Due\s*[:\-]?\s*([\d,]+\.\d{2})\s*(CR)?",
+        first_page_text,
         flags=re.IGNORECASE,
     )
     if match:
         result = normalize_amount(match.group(1))
-        if match.group(2):
-            result = f"-{result}"
-        return result
+        return f"-{result}" if match.group(2) else result
 
+    # Do not guess from purchase, loan, or net-outstanding totals. Those fields
+    # describe different scopes and can include future principal; missing the
+    # payment-summary evidence is safer than returning a plausible wrong due.
     return None
 
 
@@ -499,6 +537,7 @@ def _extract_hsbc_transactions(
             # due to slight y-offset in the PDF layout.  Merge the next
             # line's tokens into the current one.
             has_amount = any(parse_amount_token(t) is not None for t in tokens[1:])
+            detail_line_index = line_index + 1
             if not has_amount and line_index + 1 < len(lines):
                 next_line_words = lines[line_index + 1]
                 next_tokens = [
@@ -511,8 +550,19 @@ def _extract_hsbc_transactions(
                     and _parse_hsbc_date(next_tokens[0], statement_year) is None
                 ):
                     tokens = tokens + next_tokens
+                    detail_line_index += 1
                     # Re-compute joined_upper with merged tokens
                     joined_upper = clean_space(" ".join(tokens)).upper()
+
+            installment_detail: str | None = None
+            if detail_line_index < len(lines):
+                detail_tokens = [
+                    normalize_token(str(item.get("text", "")).strip())
+                    for item in lines[detail_line_index]
+                ]
+                detail_candidate = clean_space(" ".join(detail_tokens))
+                if _HSBC_INSTALLMENT_DETAIL_RE.fullmatch(detail_candidate):
+                    installment_detail = detail_candidate.upper()
 
             # Resolve year based on month in the date token
             ddmmm_match = _DDMMM_RE.fullmatch(tokens[0].strip())
@@ -528,6 +578,7 @@ def _extract_hsbc_transactions(
                     "page": page_number,
                     "line_index": line_index,
                     "tokens": tokens,
+                    "installment_detail": installment_detail,
                     "current_member": current_member,
                     "current_card": current_card,
                 }
@@ -592,6 +643,8 @@ def _extract_hsbc_transactions(
 
             narration = clean_space(" ".join(narration_tokens))
             narration = clean_narration_artifacts(narration)
+            if installment_detail:
+                narration = clean_space(f"{narration} {installment_detail}")
 
             if not narration:
                 rejected_date_lines.append(
@@ -621,7 +674,9 @@ def _extract_hsbc_transactions(
 
             credit_reason = None
             if is_credit:
-                credit_reason = "cr_marker"
+                credit_reason = (
+                    "emi_installment_transfer" if installment_detail else "cr_marker"
+                )
 
             transactions.append(
                 Transaction(
@@ -641,6 +696,38 @@ def _extract_hsbc_transactions(
         "detected_members": detected_members,
     }
     return transactions, debug
+
+
+def _split_hsbc_reconciliation_credits(
+    debit_transactions: list[Transaction],
+    credit_transactions: list[Transaction],
+) -> tuple[list[Transaction], list[Transaction]]:
+    """Separate payable credits from paired EMI transfer credits.
+
+    HSBC prints an internal ``CR`` transfer immediately before the matching
+    billed EMI debit. Both rows remain in parsed output, but subtracting that
+    transfer from current dues without also parsing the hidden loan-ledger debit
+    understates the payable amount.
+
+    Args:
+        debit_transactions: Parsed HSBC debit rows.
+        credit_transactions: Parsed HSBC credit rows.
+
+    Returns:
+        ``(payable_credits, excluded_emi_transfers)`` for smart reconciliation.
+    """
+    debit_keys = {
+        (txn.date, txn.amount, txn.narration.upper()) for txn in debit_transactions
+    }
+    payable_credits: list[Transaction] = []
+    emi_transfers: list[Transaction] = []
+    for txn in credit_transactions:
+        key = (txn.date, txn.amount, txn.narration.upper())
+        if txn.credit_reasons == "emi_installment_transfer" and key in debit_keys:
+            emi_transfers.append(txn)
+        else:
+            payable_credits.append(txn)
+    return payable_credits, emi_transfers
 
 
 def _extract_hsbc_account_summary(
@@ -748,6 +835,48 @@ def _extract_hsbc_account_summary(
     return StatementSummary()
 
 
+def _normalize_hsbc_reward_points(value: str) -> str:
+    """Normalize a points value to a non-monetary numeric string.
+
+    Args:
+        value: Extracted points value, often rendered with two decimal places.
+
+    Returns:
+        Integer-looking points without decimal places, preserving a fractional
+        component only when the statement actually contains one.
+    """
+    points = parse_amount(value)
+    if points == points.to_integral_value():
+        return str(int(points))
+    return format(points.normalize(), "f")
+
+
+def _apply_hsbc_reward_rollups(
+    card_summaries: list[CardSummary],
+    person_groups: list[PersonGroup],
+    earned_points: str | None,
+) -> None:
+    """Attach statement-only earnings when they have one unambiguous owner.
+
+    HSBC does not print points per transaction. When exactly one card/person
+    group exists, the statement's earned value can still populate those
+    rollups. Multi-card statements remain unallocated rather than fabricating a
+    split.
+
+    Args:
+        card_summaries: Parsed card-level rollups to update in place.
+        person_groups: Parsed person-level rollups to update in place.
+        earned_points: Statement-declared points earned during this cycle.
+
+    Returns:
+        None.
+    """
+    if earned_points is None or len(card_summaries) != 1 or len(person_groups) != 1:
+        return
+    card_summaries[0].reward_points_total = earned_points
+    person_groups[0].reward_points_total = earned_points
+
+
 def _extract_hsbc_reward_points(
     pages: list[dict[str, Any]],
 ) -> tuple[str | None, str | None]:
@@ -788,9 +917,12 @@ def _extract_hsbc_reward_points(
                         if amt:
                             amounts.append(normalize_amount(amt))
                     if len(amounts) >= 4:
-                        return amounts[1], amounts[3]
+                        return (
+                            _normalize_hsbc_reward_points(amounts[1]),
+                            _normalize_hsbc_reward_points(amounts[3]),
+                        )
                     if len(amounts) >= 2:
-                        return amounts[1], None
+                        return _normalize_hsbc_reward_points(amounts[1]), None
 
         # Strategy 2: the reward summary is the last 4-amount row on
         # page 1 (the first such row is typically the account summary).
@@ -811,7 +943,10 @@ def _extract_hsbc_reward_points(
         if len(four_amount_rows) >= 2:
             # Second 4-amount row: [opening, earned, redeemed, closing]
             reward_row = four_amount_rows[-1]
-            return reward_row[1], reward_row[3]
+            return (
+                _normalize_hsbc_reward_points(reward_row[1]),
+                _normalize_hsbc_reward_points(reward_row[3]),
+            )
 
     return None, None
 
@@ -868,9 +1003,13 @@ class HsbcParser(StatementParser):
         debit_transactions = assign_transaction_ids(debit_transactions, self.bank)
         credit_transactions = assign_transaction_ids(credit_transactions, self.bank)
 
-        # Detect adjustment pairs
+        payable_credits, _emi_transfer_credits = _split_hsbc_reconciliation_credits(
+            debit_transactions, credit_transactions
+        )
+
+        # Internal EMI transfers are bookkeeping rows, not refunds/reversals.
         adjustment_pairs = detect_adjustment_pairs(
-            debit_transactions, credit_transactions, self.bank
+            debit_transactions, payable_credits, self.bank
         )
 
         card_summaries, overall_total = build_card_summaries(debit_transactions, name)
@@ -886,6 +1025,7 @@ class HsbcParser(StatementParser):
             else sum_points(debit_transactions)
         )
         reward_points_balance = closing_points
+        _apply_hsbc_reward_rollups(card_summaries, person_groups, earned_points)
 
         due_date = _extract_hsbc_due_date(full_text, pages)
         statement_total_amount_due = _extract_hsbc_total_amount_due(full_text, pages)
@@ -895,6 +1035,7 @@ class HsbcParser(StatementParser):
             debit_transactions,
             credit_transactions,
             summary_fields,
+            smart_credit_transactions=payable_credits,
         )
 
         return ParsedStatement(
@@ -944,6 +1085,13 @@ class HsbcParser(StatementParser):
                 "date_lines_seen": len(txn_debug["date_lines"]),
                 "date_lines_rejected": len(txn_debug["rejected_date_lines"]),
                 "member_headers_detected": len(txn_debug["detected_members"]),
+                "emi_transfer_credits": len(
+                    [
+                        t
+                        for t in transactions
+                        if t.credit_reasons == "emi_installment_transfer"
+                    ]
+                ),
             },
             "card_from_filename": extract_card_from_filename(
                 str(raw_data.get("file", ""))

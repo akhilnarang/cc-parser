@@ -101,4 +101,9 @@ Contributor/agent guidance is in `AGENTS.md`.
 ICICI add-on handling:
 - if explicit add-on holder names are not reliably extractable, output uses stable labels in the format `ADDON <last 4 digits of addon>`.
 
+HSBC summary handling:
+- `statement_total_amount_due` comes from the page-1 **Total payment due** cell, not **Net outstanding balance**, which can include principal from future loan instalments.
+- EMI principal/interest detail printed below a posting is retained in its narration. Matching `CR` rows are kept in `payments_refunds` as `emi_installment_transfer`, but excluded transparently from payable reconciliation because they are internal loan-ledger transfers rather than payments/refunds.
+- reward summary values are exposed as cycle earnings and closing balance; when the statement has one card/person, cycle earnings also populate that card/person rollup without fabricating per-transaction points.
+
 Internal parser layout now splits summary helpers into `cc_parser/parsers/summary/` and refund pairing into `cc_parser/parsers/adjustment_pairing/`. Legacy import paths remain as compatibility shims for downstream code.

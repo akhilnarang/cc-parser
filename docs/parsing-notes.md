@@ -30,6 +30,9 @@ Extraction caveats that parser accounts for:
 - Credit markers (for example, `CR` or bare `C`/`D` for SBI, `DR`/`CR` for IDFC, `CR` suffix for HSBC, `Cr`/`Dr` for Axis) that indicate refunds/payments.
 - Page-1 bank branding that should be preferred over merchant text when auto-detecting the issuer.
 - Equitas-style page-1 summaries where `Total Due` / `Due Date` live above the transaction grid and MITC/example pages later in the PDF contain unrelated sample totals.
+- HSBC payment-summary labels that may not survive text extraction. The parser uses the page-1 statement-period row to recover `Total payment due` and does not substitute `Net outstanding balance`, because that balance can include future loan instalments.
+- HSBC reward summaries that expose aggregate opening/earned/redeemed/closing values but no per-transaction points. Earned and closing values are normalized as point counts; earned points populate card/person rollups only when there is exactly one unambiguous card/person group.
+- HSBC EMI postings whose principal/interest detail is printed on a continuation line below both a `CR` transfer and matching billed debit. The detail is retained in narration, the internal credit remains observable in `payments_refunds`, and smart reconciliation excludes it from credits applied to the current payable amount.
 
 ## Normalized Output Model
 
@@ -108,9 +111,9 @@ used only where it independently passes the same gate.
 
 The **smart delta** (`smart_expected_total`) accounts for previous balance:
 
-    expected = previous_balance + parsed_debits + fees - parsed_credits
+    expected = previous_balance + parsed_debits + fees - applicable_credits
 
-A near-zero smart delta confirms all transactions are captured.
+Normally all parsed credits are applicable. A bank parser may exclude a structurally identified internal transfer from payable math while retaining it in parsed credit totals. `smart_credit_total` and `smart_excluded_credit_total` make that adjustment explicit. A near-zero smart delta confirms all relevant transactions are captured.
 
 When previous balance exists and credits cover it, the reconciliation also reports:
 

@@ -69,10 +69,12 @@ Fields:
 - `parsed_debit_total` (`string`)
 - `parsed_credit_total` (`string`)
 - `parsed_net_due_estimate` (`string`): debits minus credits.
-- `smart_expected_total` (`string`): `previous_balance + debits + fees - credits`.
-- `smart_delta` (`string`): `statement_total - smart_expected`. Near zero when all transactions are captured.
+- `smart_expected_total` (`string`): `previous_balance + debits + fees - applicable_credits`.
+- `smart_delta` (`string`): `statement_total - smart_expected`. Near zero when all relevant transactions are captured.
+- `smart_credit_total` (`string`): parsed credits applied to current payable reconciliation.
+- `smart_excluded_credit_total` (`string`): structurally identified internal credits retained in parsed output but excluded from payable math (for example, a paired HSBC EMI loan-ledger transfer).
 - `prev_balance_cleared_date` (`string | null`): date when cumulative credits first exceeded previous balance.
-- `excess_paid_after_clearing` (`string | null`): `total_credits - previous_balance` (portion toward current-cycle charges).
+- `excess_paid_after_clearing` (`string | null`): `smart_credit_total - previous_balance` (applicable credits remaining after the previous balance was cleared).
 - `header_purchases_debit`, `header_finance_charges`, `header_payments_credits_received`, `header_computed_due_estimate`: raw summary fields.
 - `delta_statement_vs_parsed_debit`, `delta_statement_vs_parsed_net`, `delta_statement_vs_header_estimate`: legacy deltas.
 - `summary_amount_candidates` (`array`): raw amounts found in summary area.

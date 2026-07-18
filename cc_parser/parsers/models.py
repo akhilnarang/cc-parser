@@ -79,6 +79,8 @@ class Reconciliation(BaseModel):
     header_computed_due_estimate: str
     smart_expected_total: str
     smart_delta: str
+    smart_credit_total: str = ""
+    smart_excluded_credit_total: str = "0.00"
     prev_balance_cleared_date: str | None = None
     excess_paid_after_clearing: str | None = None
     delta_statement_vs_parsed_debit: str
