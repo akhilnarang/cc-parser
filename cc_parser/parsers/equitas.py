@@ -24,10 +24,17 @@ _CARD_RE = re.compile(r"Card\s+No:\s*([0-9*Xx]{12,19})", re.IGNORECASE)
 _MEMBER_HEADER_RE = re.compile(
     r"^(?P<name>[A-Z][A-Z .'-]+?)\s*:\s*\((?P<card>[0-9*Xx]{12,19})\)$"
 )
-_TOTAL_DUE_RE = re.compile(
-    r"Total\s+Due:\s*Due\s+Date:\s*₹\s*([\d,]+\.\d{2})\s+([0-9]{1,2}\s+[A-Za-z]{3,9}\s+\d{4})",
-    re.IGNORECASE | re.DOTALL,
-)
+# The ``Total Due`` amount and ``Due Date`` sit between the ``Total Due:`` label
+# and the ``Opening Balance Payments/Credits`` header on page 1. Their in-block
+# order is not stable across statement months: some months emit
+# ``Total Due: Due Date:\n₹<amt> <DD Month YYYY>`` on two tidy lines, others emit
+# the ``Due Date:`` label first and split the date around the amount, e.g.
+# ``DD Month`` / ``₹<amt>`` / ``YYYY``. So we bound the window and pull the
+# amount and the date out independently rather than matching a fixed sequence.
+_TOTAL_DUE_ANCHOR_RE = re.compile(r"Total\s+Due\s*:", re.IGNORECASE)
+_SUMMARY_END_ANCHOR_RE = re.compile(r"Opening\s+Balance\s+Payments", re.IGNORECASE)
+_LONG_DATE_RE = re.compile(r"\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}")
+_MINIMUM_DUE_LINE_RE = re.compile(r"Minimum\s+Due\s*:[^\n]*", re.IGNORECASE)
 _REWARD_SUMMARY_RE = re.compile(
     r"Reward\s+Points\s+Summary\s+"
     r"Opening\s+Balance\s+Reward\s+Points\s+Earned_E\s+"
@@ -91,6 +98,39 @@ def _extract_equitas_card_number(
     return None
 
 
+def _extract_total_due_and_date(page_text: str) -> tuple[str | None, str | None]:
+    """Extract the ``Total Due`` amount and ``Due Date`` from the summary block.
+
+    The window between the ``Total Due:`` label and the ``Opening Balance
+    Payments/Credits`` header holds exactly one currency amount (the total due)
+    and one long-form date, but their relative order and line breaks vary by
+    statement month. Pulling the amount out first and then searching the
+    remaining text for the date tolerates the date being split around the
+    amount (``DD Month`` ... ``YYYY``).
+
+    The window is expected to hold a single amount and a single date. If it
+    holds more than one of either, the layout is one we have not seen and the
+    "first match" would be a guess, so we bail to ``None`` and let the generic
+    extractor try rather than emit a confidently-wrong total or due date. The
+    ``Minimum Due:`` line is dropped defensively in case a future layout pulls
+    it inside the window — its amount must never be mistaken for the total due.
+    """
+    start = _TOTAL_DUE_ANCHOR_RE.search(page_text)
+    end = _SUMMARY_END_ANCHOR_RE.search(page_text)
+    if not start or not end or end.start() <= start.end():
+        return None, None
+
+    window = _MINIMUM_DUE_LINE_RE.sub(" ", page_text[start.end() : end.start()])
+
+    amounts = _CURRENCY_AMOUNT_RE.findall(window)
+    total_due = normalize_amount(amounts[0]) if len(amounts) == 1 else None
+
+    dates = _LONG_DATE_RE.findall(clean_space(_CURRENCY_AMOUNT_RE.sub(" ", window)))
+    due_date = parse_date(dates[0]) if len(dates) == 1 else None
+
+    return total_due, due_date
+
+
 def _extract_equitas_summary(
     page_text: str,
 ) -> tuple[str | None, str | None, StatementSummary]:
@@ -102,12 +142,7 @@ def _extract_equitas_summary(
     Returns:
         Tuple of ``(total_due, due_date, summary_fields)``.
     """
-    total_due: str | None = None
-    due_date: str | None = None
-    total_match = _TOTAL_DUE_RE.search(page_text)
-    if total_match:
-        total_due = normalize_amount(total_match.group(1))
-        due_date = parse_date(total_match.group(2))
+    total_due, due_date = _extract_total_due_and_date(page_text)
 
     summary_lines = [
         clean_space(line) for line in page_text.splitlines() if line.strip()

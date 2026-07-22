@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from cc_parser.cli import BankOption
 from cc_parser.extractor import extract_raw_pdf
+from cc_parser.parsers.equitas import _extract_total_due_and_date
 from cc_parser.parsers.factory import detect_bank, get_parser, list_bank_choices
 from cc_parser.parsers.models import ParsedStatement
 from cc_parser.parsers.registry import PARSER_REGISTRY
@@ -344,6 +345,98 @@ class ParserContractSmokeTests(unittest.TestCase):
         self.assertEqual(result.reward_points_bonus, "30")
         self.assertEqual(result.reward_points_balance, "60")
         self.assertEqual(result.reward_points_line_total, "50")
+
+    def test_equitas_parser_handles_scrambled_summary_layout(self) -> None:
+        """Some Equitas statements emit the Total Due / Due Date block with the
+        labels reordered and the due date split across lines around the amount.
+
+        Layout observed (all values below are synthetic):
+            Due Date:
+            Statement Summary Total Due:
+            DD Month
+            ₹<amount>
+            YYYY
+        """
+        raw_data = {
+            "file": "equitas.pdf",
+            "pages": [
+                {
+                    "page_number": 1,
+                    "words": [],
+                    "text": (
+                        "Your Credit Card Statement - Jul 26\n"
+                        "Jane Example RUPAY SELFE CARD\n"
+                        "Card No: 1234********5678\n"
+                        "Total Credit Limit Available Credit Limit Cash Limit "
+                        "Available Cash Limit\n"
+                        "₹ 300,000.00 ₹ 250,000.00 ₹ 100,000.00 ₹ 100,000.00\n"
+                        "Due Date:\n"
+                        "Statement Summary Total Due:\n"
+                        "15 September\n"
+                        "₹12,345.67\n"
+                        "2026\n"
+                        "Opening Balance Payments/Credits Spends/Charges\n"
+                        "Minimum Due: ₹ 617.28\n"
+                        "₹1,000.00 ₹500.00 ₹11,845.67\n"
+                        "Reward Points Summary\n"
+                        "Opening Balance Reward Points Earned_E Bonus Points Earned_B Redeemed Adjusted Lapsed Closing Balance\n"
+                        "10 20 30 0 0 0 60\n"
+                        "Transaction History\n"
+                        "Date Transaction Details Reference Number Rewards Earned Amount\n"
+                        "JANE EXAMPLE : (123456XXXXXX5678)\n"
+                        "01/07/2026 TEST STORE RT12345678901234567890 +25 B ₹500.00 Dr.\n"
+                        "Page : 1 of 1\n"
+                    ),
+                },
+            ],
+        }
+
+        parser = get_parser("equitas", raw_data)
+        result = parser.parse(raw_data)
+
+        self.assertEqual(result.due_date, "15/09/2026")
+        self.assertEqual(result.statement_total_amount_due, "12,345.67")
+        self.assertEqual(result.reconciliation.header_previous_balance, "1,000.00")
+        self.assertEqual(
+            result.reconciliation.header_payments_credits_received, "500.00"
+        )
+        self.assertEqual(result.reconciliation.header_purchases_debit, "11,845.67")
+
+
+class EquitasSummaryWindowTests(unittest.TestCase):
+    """Guard behavior for the Equitas Total Due / Due Date window extractor."""
+
+    def test_minimum_due_amount_inside_window_is_ignored(self) -> None:
+        """A ``Minimum Due:`` line pulled into the window must not be read as
+        the total due; its amount is dropped before the single-amount check."""
+        text = (
+            "Total Due:\n15 September\n₹12,345.67\n2026\n"
+            "Minimum Due: ₹ 617.28\nOpening Balance Payments"
+        )
+        self.assertEqual(_extract_total_due_and_date(text), ("12,345.67", "15/09/2026"))
+
+    def test_ambiguous_multi_amount_window_bails_to_none(self) -> None:
+        """More than one amount in the window is an unseen layout: return None
+        for the total rather than guessing the first match."""
+        text = "Total Due:\n₹100.00 ₹200.00\n10 May 2026\nOpening Balance Payments"
+        total_due, due_date = _extract_total_due_and_date(text)
+        self.assertIsNone(total_due)
+        self.assertEqual(due_date, "10/05/2026")
+
+    def test_ambiguous_multi_date_window_bails_to_none(self) -> None:
+        """More than one date in the window returns None for the due date."""
+        text = "Total Due:\n₹100.00\n10 May 2026 22 May 2026\nOpening Balance Payments"
+        total_due, due_date = _extract_total_due_and_date(text)
+        self.assertEqual(total_due, "100.00")
+        self.assertIsNone(due_date)
+
+    def test_missing_end_anchor_returns_none(self) -> None:
+        """Without the summary end anchor the window is undefined; both fields
+        fall back to None so the generic extractor can try."""
+        self.assertEqual(
+            _extract_total_due_and_date("Total Due:\n₹100.00\n10 May 2026\n"),
+            (None, None),
+        )
 
 
 class PrivacyTests(unittest.TestCase):
