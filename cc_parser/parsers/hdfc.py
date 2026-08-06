@@ -9,7 +9,8 @@ import re
 from typing import Any
 
 from cc_parser.parsers.generic import GenericParser
-from cc_parser.parsers.models import BonusProgram, ParsedStatement
+from cc_parser.parsers.models import BonusProgram, ParsedStatement, StatementSummary
+from cc_parser.parsers.tokens import normalize_amount
 
 
 # Page 1 has a "Reward Points  Opening Balance  Feature + Bonus Reward  Disbursed  Adjusted/Lapsed"
@@ -34,6 +35,52 @@ _FOUR_NUMS_RE = re.compile(
 _PROGRAM_TABLE_HEADER_RE = re.compile(r"Rewards Program Points Summary", re.IGNORECASE)
 _PROGRAM_ROW_RE = re.compile(r"^\s*\d+\s+(.+?)\s+(-?\d[\d,]*)\s+pts\s*$", re.IGNORECASE)
 _PROGRAM_TOTAL_RE = re.compile(r"^\s*Total\s+(-?\d[\d,]*)\s+pts\s*$", re.IGNORECASE)
+
+# HDFC prints the summary as a single equation row below the labels:
+#   "C<prev> C<payments> + C<purchases> + C<finance> ="
+# The values map to previous dues, payments/credits received, purchases, and
+# finance charges, in that order. Each value can be negative when a prior cycle
+# ended in credit. The shared positional heuristic mis-reads this layout because
+# the total amount due appears first in the block, so HDFC parses the row here.
+# The row is one line, so horizontal whitespace only. This stops a match from
+# stitching a value off the line above.
+_SUMMARY_EQUATION_RE = re.compile(
+    r"C[ \t]*(-?\d[\d,]*\.\d{2})[ \t]+C[ \t]*(-?\d[\d,]*\.\d{2})[ \t]*\+[ \t]*"
+    r"C[ \t]*(-?\d[\d,]*\.\d{2})[ \t]*\+[ \t]*C[ \t]*(-?\d[\d,]*\.\d{2})[ \t]*="
+)
+
+
+def _extract_summary_equation(page_text: str) -> tuple[str, str, str, str] | None:
+    """Read the HDFC summary equation row from page-1 text.
+
+    The search stays inside the summary block so a later illustration that
+    repeats the equation shape cannot overwrite the real values.
+
+    Args:
+        page_text: Page-1 statement text.
+
+    Returns:
+        Normalized ``(previous_dues, payments_received, purchases, finance)``
+        or ``None`` when the equation row is absent.
+    """
+    upper = page_text.upper()
+    start = upper.find("PREVIOUS STATEMENT DUES")
+    if start == -1:
+        start = upper.find("TOTAL AMOUNT DUE")
+    if start == -1:
+        start = 0
+    end = upper.find("TOTAL CREDIT LIMIT", start)
+    region = page_text[start:end] if end != -1 else page_text[start : start + 600]
+
+    match = _SUMMARY_EQUATION_RE.search(region)
+    if not match:
+        return None
+    return (
+        normalize_amount(match.group(1)),
+        normalize_amount(match.group(2)),
+        normalize_amount(match.group(3)),
+        normalize_amount(match.group(4)),
+    )
 
 
 def _clean_num(value: str) -> str:
@@ -118,6 +165,33 @@ class HdfcParser(GenericParser):
     # that carries rows. Both were measured on the HDFC layouts, so the
     # header-anchored removal is enabled for this profile.
     strip_action_lane = True
+
+    def _extract_summary(
+        self, full_text: str, pages: list[dict[str, Any]]
+    ) -> StatementSummary:
+        """Map the HDFC summary equation row onto the summary fields.
+
+        Args:
+            full_text: Full statement text across pages.
+            pages: Raw per-page extraction payloads.
+
+        Returns:
+            Summary with the equation values applied when the row is present,
+            otherwise the shared heuristic result.
+        """
+        summary = super()._extract_summary(full_text, pages)
+        page_text = str(pages[0].get("text", "")) if pages else full_text
+        equation = _extract_summary_equation(page_text)
+        if equation is not None:
+            (
+                summary.previous_statement_dues,
+                summary.payments_credits_received,
+                summary.purchases_debit,
+                summary.finance_charges,
+            ) = equation
+            # The heuristic equation tail is meaningless once the row is parsed.
+            summary.equation_tail = None
+        return summary
 
     def parse(self, raw_data: dict[str, Any]) -> ParsedStatement:
         """Parse HDFC statement payload using shared generic logic.

@@ -195,10 +195,20 @@ def extract_total_amount_due(full_text: str) -> str | None:
     end = upper_text.find("TOTAL CREDIT LIMIT", start)
     segment = full_text[start:end] if end != -1 else full_text[start : start + 1200]
 
-    for pattern in [r"C\s*\d[\d,]*\.\d{2}", r"`\s*\d[\d,]*\.\d{2}", r"\d[\d,]*\.\d{2}"]:
+    # A paid-off card shows a negative total due (overpayment, refund, or
+    # reversal). The value sits before the PREVIOUS STATEMENT DUES figure in
+    # the summary row. The sign must be kept, or a positive-only match skips
+    # the real value and returns the previous dues instead. The lookbehind
+    # stops the sign from attaching to a preceding token such as "A/C-1,234.56".
+    for pattern in [
+        r"(?<![\w/])C\s*-?\d[\d,]*\.\d{2}",
+        r"`\s*-?\d[\d,]*\.\d{2}",
+        r"(?<![\w./-])-?\d[\d,]*\.\d{2}",
+    ]:
         match = re.search(pattern, segment)
         if match:
-            return normalize_amount(match.group(0).replace("C", "").strip())
+            cleaned = match.group(0).replace("C", "").replace("`", "").strip()
+            return normalize_amount(cleaned)
 
     return None
 
