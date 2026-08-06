@@ -172,8 +172,30 @@ def extract_card_from_line(tokens: list[str]) -> tuple[str | None, str | None]:
     return card_value, member
 
 
+def _strip_member_annotations(tokens: list[str]) -> list[str]:
+    """Drop a trailing CKYC-id annotation from a member-header line.
+
+    HDFC appends "[CKYC ID : <digits>]" to a recently added add-on holder's
+    name. The annotation is not part of the name. A name never contains "[" or
+    the token "CKYC", so cut from the first such token onward.
+
+    Args:
+        tokens: Raw line tokens.
+
+    Returns:
+        The tokens before any annotation.
+    """
+    kept: list[str] = []
+    for token in tokens:
+        if "[" in token or re.sub(r"[^A-Za-z]", "", token).upper() == "CKYC":
+            break
+        kept.append(token)
+    return kept
+
+
 def looks_like_member_header(tokens: list[str]) -> str | None:
     """Detect whether a line looks like a person/member section header."""
+    tokens = _strip_member_annotations(tokens)
     cleaned_words: list[str] = []
     for token in tokens:
         value = normalize_token(token)
