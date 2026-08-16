@@ -958,7 +958,7 @@ def _person_tokens(label: str | None) -> list[str]:
     Returns:
         Uppercase tokens. Empty when the label has none.
     """
-    return clean_space((label or "")).upper().split()
+    return clean_space(label or "").upper().split()
 
 
 def _is_subsequence(short: list[str], long: list[str]) -> bool:

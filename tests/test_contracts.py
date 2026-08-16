@@ -487,7 +487,7 @@ class PrivacyTests(unittest.TestCase):
                 ),
             ),
             patch("cc_parser.extractor.pdfplumber.open", return_value=fake_plumber_doc),
-            patch("cc_parser.extractor.fitz.open", return_value=fake_fitz_doc),
+            patch("cc_parser.extractor.pymupdf.open", return_value=fake_fitz_doc),
         ):
             document = extract_raw_pdf(pdf_path, include_blocks=False, password=None)
 

@@ -12,8 +12,8 @@ import io
 from pathlib import Path
 from typing import Any
 
-import fitz
 import pdfplumber
+import pymupdf
 from pypdf import PdfReader, PdfWriter
 
 
@@ -94,7 +94,7 @@ def prepare_pdf_bytes_if_encrypted(
     )
 
 
-def blocks_from_pymupdf(page: fitz.Page) -> list[dict[str, Any]]:
+def blocks_from_pymupdf(page: pymupdf.Page) -> list[dict[str, Any]]:
     """Extract text blocks with bounding boxes from a page.
 
     Args:
@@ -147,10 +147,10 @@ def extract_raw_pdf(
 
     if pdf_bytes is None:
         plumber_context = pdfplumber.open(str(pdf_path))
-        fitz_context = fitz.open(str(pdf_path))
+        fitz_context = pymupdf.open(str(pdf_path))
     else:
         plumber_context = pdfplumber.open(io.BytesIO(pdf_bytes))
-        fitz_context = fitz.open(stream=pdf_bytes, filetype="pdf")
+        fitz_context = pymupdf.open(stream=pdf_bytes, filetype="pdf")
 
     with plumber_context as plumber_doc, fitz_context as fitz_doc:
         document["page_count"] = len(plumber_doc.pages)
