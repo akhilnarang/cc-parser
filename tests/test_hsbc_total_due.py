@@ -2,13 +2,32 @@
 
 from cc_parser.parsers.hsbc import (
     _apply_hsbc_reward_rollups,
+    _canonicalize_hsbc_persons,
     _extract_hsbc_reward_points,
     _extract_hsbc_total_amount_due,
     _extract_hsbc_transactions,
     _split_hsbc_reconciliation_credits,
 )
-from cc_parser.parsers.models import CardSummary, PersonGroup, StatementSummary
+from cc_parser.parsers.models import (
+    CardSummary,
+    PersonGroup,
+    StatementSummary,
+    Transaction,
+)
+from cc_parser.parsers.summary.grouping import build_card_summaries
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
+
+
+def _person_txn(card: str, person: str, amount: str) -> Transaction:
+    """Build a minimal debit row for person-canonicalization tests."""
+    return Transaction(
+        date="01/08/2026",
+        narration="TEST MERCHANT",
+        amount=amount,
+        card_number=card,
+        person=person,
+        transaction_type="debit",
+    )
 
 
 def _line_words(tokens: list[str], top: float) -> list[dict]:
@@ -90,7 +109,7 @@ def test_total_due_text_fallback_never_reads_later_pages():
             "text": "Illustration\nTotal Payment Due: 8,888.88",
         },
     ]
-    full_text = "\n".join(page["text"] for page in pages)
+    full_text = "\n".join(str(page["text"]) for page in pages)
 
     assert _extract_hsbc_total_amount_due(full_text, pages) is None
 
@@ -200,3 +219,55 @@ def test_multi_card_reward_points_are_not_fabricated():
 
     assert [card.reward_points_total for card in cards] == ["0", "0"]
     assert [group.reward_points_total for group in groups] == ["0", "0"]
+
+
+def test_short_and_full_name_on_one_card_collapse_to_one_summary():
+    """Two spellings of one cardholder on one card must not split the card.
+
+    HSBC prints a fuller name outside the member header and a shorter name in
+    it. Pre-header rows carry the fuller name; rows under the header carry the
+    shorter one. Both must resolve to the fuller name so the card is not shown
+    as a phantom add-on card.
+    """
+    mask = "40XX XXXX XXXX 0001"
+    full = "TEST MIDDLE CARDHOLDER"
+    short = "TEST CARDHOLDER"
+    transactions = [
+        _person_txn(mask, full, "999.00"),
+        _person_txn(mask, short, "1.00"),
+        _person_txn(mask, short, "10.00"),
+    ]
+
+    before, _ = build_card_summaries(transactions, full)
+    assert len(before) == 2
+
+    _canonicalize_hsbc_persons(transactions, full)
+
+    assert {txn.person for txn in transactions} == {full}
+    after, _ = build_card_summaries(transactions, full)
+    assert len(after) == 1
+    assert after[0].person == full
+    assert after[0].transaction_count == 3
+
+
+def test_addon_card_with_subset_name_stays_distinct():
+    """A genuine add-on card keeps its own mask, so it is never merged.
+
+    A subset name on a different card mask must not be absorbed into the
+    primary card.
+    """
+    primary_mask = "40XX XXXX XXXX 0001"
+    addon_mask = "40XX XXXX XXXX 0002"
+    full = "TEST MIDDLE CARDHOLDER"
+    short = "TEST CARDHOLDER"
+    transactions = [
+        _person_txn(primary_mask, full, "999.00"),
+        _person_txn(addon_mask, short, "50.00"),
+    ]
+
+    _canonicalize_hsbc_persons(transactions, full)
+
+    assert transactions[0].person == full
+    assert transactions[1].person == short
+    summaries, _ = build_card_summaries(transactions, full)
+    assert len(summaries) == 2

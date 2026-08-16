@@ -169,7 +169,7 @@ def _resolve_year_for_date(
     if period_info is None:
         return default_year
 
-    start_month, start_year, end_month, end_year = period_info
+    start_month, start_year, _end_month, end_year = period_info
 
     # If start and end year differ, assign based on month
     if start_year != end_year:
@@ -361,7 +361,7 @@ def _extract_hsbc_amount_from_tokens(tokens: list[str]) -> str | None:
 
 
 def _extract_hsbc_total_amount_due(
-    full_text: str, pages: list[dict[str, Any]]
+    _full_text: str, pages: list[dict[str, Any]]
 ) -> str | None:
     """Extract total payment due from HSBC's page-1 payment summary.
 
@@ -551,8 +551,6 @@ def _extract_hsbc_transactions(
                 ):
                     tokens = tokens + next_tokens
                     detail_line_index += 1
-                    # Re-compute joined_upper with merged tokens
-                    joined_upper = clean_space(" ".join(tokens)).upper()
 
             installment_detail: str | None = None
             if detail_line_index < len(lines):
@@ -951,6 +949,106 @@ def _extract_hsbc_reward_points(
     return None, None
 
 
+def _person_tokens(label: str | None) -> list[str]:
+    """Return the uppercase whitespace tokens of a person label.
+
+    Args:
+        label: Raw person label, or None.
+
+    Returns:
+        Uppercase tokens. Empty when the label has none.
+    """
+    return clean_space((label or "")).upper().split()
+
+
+def _is_subsequence(short: list[str], long: list[str]) -> bool:
+    """Return True when ``short`` is an order-preserving subsequence of ``long``.
+
+    Args:
+        short: Candidate shorter token list.
+        long: Candidate longer token list.
+
+    Returns:
+        True when every token of ``short`` appears in ``long`` in order.
+    """
+    it = iter(long)
+    return all(token in it for token in short)
+
+
+def _canonicalize_hsbc_persons(
+    transactions: list[Transaction], statement_name: str | None
+) -> None:
+    """Collapse short/full spellings of one cardholder on the same card.
+
+    HSBC prints the cardholder name two ways. The address block gives a fuller
+    name. The member header next to the card number gives a shorter one. Rows
+    outside a member header fall back to the fuller name. The result is two
+    person labels on one physical card, which splits card summaries and shows a
+    phantom add-on card.
+
+    This step rewrites the shorter label to the fuller one when the shorter is a
+    proper order-preserving subsequence of a single fuller label under the same
+    card mask. The rewrite is scoped per exact card mask. It requires at least
+    two tokens on both sides. It skips a mask when more than one distinct fuller
+    label could absorb the shorter one, because that is genuine ambiguity.
+
+    Genuine add-on cards keep distinct masks, so they are never merged.
+
+    Args:
+        transactions: Parsed HSBC rows. Modified in place.
+        statement_name: Statement-level name. Preferred as the canonical winner
+            when it equals the resolved fuller label.
+
+    Returns:
+        None.
+    """
+    labels_by_mask: dict[str, set[str]] = {}
+    for txn in transactions:
+        mask = (txn.card_number or "").strip()
+        person = (txn.person or "").strip()
+        if not mask or not person:
+            continue
+        labels_by_mask.setdefault(mask, set()).add(person)
+
+    # Map each shorter label to the fuller label that must replace it.
+    rewrite_by_mask: dict[str, dict[str, str]] = {}
+    for mask, labels in labels_by_mask.items():
+        token_lists = {label: _person_tokens(label) for label in labels}
+        rewrites: dict[str, str] = {}
+        for short_label, short_tokens in token_lists.items():
+            if len(short_tokens) < 2:
+                continue
+            supersets = [
+                long_label
+                for long_label, long_tokens in token_lists.items()
+                if long_label != short_label
+                and len(long_tokens) > len(short_tokens)
+                and len(long_tokens) >= 2
+                and _is_subsequence(short_tokens, long_tokens)
+            ]
+            if len(supersets) != 1:
+                continue
+            winner = supersets[0]
+            if (
+                statement_name
+                and _person_tokens(statement_name) == token_lists[winner]
+            ):
+                winner = statement_name
+            rewrites[short_label] = winner
+        if rewrites:
+            rewrite_by_mask[mask] = rewrites
+
+    if not rewrite_by_mask:
+        return
+
+    for txn in transactions:
+        mask = (txn.card_number or "").strip()
+        person = (txn.person or "").strip()
+        winner = rewrite_by_mask.get(mask, {}).get(person)
+        if winner:
+            txn.person = winner
+
+
 class HsbcParser(StatementParser):
     """Parser entrypoint for HSBC Bank statements."""
 
@@ -994,6 +1092,9 @@ class HsbcParser(StatementParser):
 
         # Fix invalid person labels
         normalize_transaction_persons(transactions, name)
+
+        # Collapse short/full spellings of one cardholder on the same card.
+        _canonicalize_hsbc_persons(transactions, name)
 
         debit_transactions, credit_transactions = split_by_transaction_type(
             transactions
