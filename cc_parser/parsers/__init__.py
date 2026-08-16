@@ -18,12 +18,12 @@ from cc_parser.parsers.registry import PARSER_REGISTRY
 from cc_parser.parsers.sbi import SbiParser
 
 __all__ = [
+    "PARSER_REGISTRY",
     "CardSummary",
     "EquitasParser",
     "GenericParser",
     "HdfcParser",
     "IciciParser",
-    "PARSER_REGISTRY",
     "ParsedStatement",
     "PersonGroup",
     "Reconciliation",

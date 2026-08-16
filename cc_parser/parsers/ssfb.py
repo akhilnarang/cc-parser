@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -17,7 +18,6 @@ from cc_parser.parsers.cards import (
     split_by_transaction_type,
 )
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
@@ -30,7 +30,6 @@ from cc_parser.parsers.tokens import (
     sum_points,
 )
 from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
-
 
 _MONTHS = {
     "JAN": "01",

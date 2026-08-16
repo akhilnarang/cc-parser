@@ -404,11 +404,10 @@ def _extract_sbi_account_summary(
             if amount_count >= 4:
                 amounts_line_idx = idx
                 break
-            # A line with 1 amount + optional "CR" could be Total Outstanding
-            if amount_count == 1 and amounts_line_idx is None:
-                # Only treat as total outstanding if it's after the header area
-                if offset > 8:
-                    total_outstanding_line_idx = idx
+            # A line with 1 amount + optional "CR" could be Total Outstanding.
+            # Only treat as total outstanding if it's after the header area.
+            if amount_count == 1 and amounts_line_idx is None and offset > 8:
+                total_outstanding_line_idx = idx
 
         if amounts_line_idx is None:
             continue

@@ -22,6 +22,7 @@ The parsing strategy:
 import re
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -31,7 +32,6 @@ from cc_parser.parsers.cards import (
 )
 from cc_parser.parsers.extraction import group_words_into_lines
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
@@ -41,7 +41,6 @@ from cc_parser.parsers.summary.totals import (
     extract_due_date_from_pages,
     extract_name,
 )
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     clean_space,
     format_amount,
@@ -52,6 +51,7 @@ from cc_parser.parsers.tokens import (
     sum_amounts,
     sum_points,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 # Regex for the BOB member header line inside the particulars column.
 # Matches: "FIRSTNAME LASTNAME (PRIMARY CARD - 1234)" or "(ADDON CARD - 5678)"
@@ -216,9 +216,13 @@ def _is_bob_transaction_table(table: list[list[Any]]) -> bool:
     if row0 and isinstance(row0[0], str) and "TRANSACTION" in row0[0].upper():
         return True
     for row in table[1:]:
-        if len(row) >= 7 and isinstance(row[0], str):
-            if "\n" in row[0] and re.search(r"\d{2}/\d{2}/\d{4}", row[0]):
-                return True
+        if (
+            len(row) >= 7
+            and isinstance(row[0], str)
+            and "\n" in row[0]
+            and re.search(r"\d{2}/\d{2}/\d{4}", row[0])
+        ):
+            return True
     return False
 
 
@@ -414,7 +418,7 @@ def _extract_bob_account_summary(
                     continue
                 # Check if this looks like the account summary header row
                 joined = " ".join(str(cell).upper() for cell in row if cell)
-                if ("OPENING" in joined and "BALANCE" in joined) or (
+                if ("OPENING" in joined and "BALANCE" in joined) or (  # noqa: SIM102
                     "PAYMENT" in joined and "CREDIT" in joined and "PURCHASE" in joined
                 ):
                     # The data row is the next row
@@ -455,7 +459,7 @@ def _extract_bob_account_summary(
             if "OPENING" in joined and "BALANCE" in joined:
                 # Collect amounts from this line and nearby lines
                 candidate_amounts: list[str] = []
-                for offset in range(0, 5):
+                for offset in range(5):
                     scan_idx = i + offset
                     if scan_idx >= len(lines):
                         break

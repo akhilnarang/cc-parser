@@ -1,8 +1,8 @@
 """Similarity metrics and scoring helpers for adjustment pairing."""
 
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
-import re
 from typing import Literal
 
 from cc_parser.parsers.adjustment_pairing.candidates import has_refund_keyword
@@ -112,7 +112,7 @@ def calculate_amount_delta(
             delta_pct_str = None
         return delta, format_amount(delta), delta_pct_str
     except ValueError, InvalidOperation, ArithmeticError, TypeError:
-        return Decimal("0"), "0.00", None
+        return Decimal(0), "0.00", None
 
 
 def determine_kind(

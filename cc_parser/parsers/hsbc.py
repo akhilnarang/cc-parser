@@ -14,10 +14,11 @@ HSBC credit card statements differ from other banks in several ways:
 """
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -36,13 +37,11 @@ from cc_parser.parsers.models import (
 from cc_parser.parsers.narration import (
     clean_narration_artifacts,
 )
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     SEPARATOR_TOKENS,
@@ -55,6 +54,7 @@ from cc_parser.parsers.tokens import (
     sum_amounts,
     sum_points,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 # Section headers and noise lines that should not be treated as transactions
 HSBC_STOP_HEADERS = {
@@ -133,7 +133,7 @@ def _extract_statement_year(full_text: str) -> str:
     if year_match:
         return year_match.group(0)
 
-    return str(datetime.now().year)
+    return str(datetime.now(tz=UTC).year)
 
 
 def _extract_statement_period_months(
@@ -400,7 +400,7 @@ def _extract_hsbc_total_amount_due(
     for line_words in lines:
         tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
         joined = clean_space(" ".join(tokens))
-        if period_re.search(joined):
+        if period_re.search(joined):  # noqa: SIM102
             if amount := _extract_hsbc_amount_from_tokens(tokens):
                 return amount
 
@@ -520,14 +520,13 @@ def _extract_hsbc_transactions(
                 continue
 
             date_value = _parse_hsbc_date(tokens[0], statement_year)
-            if date_value is None:
-                # Sometimes the date might be split; try combining first two tokens
-                if len(tokens) >= 2:
-                    combined = tokens[0] + tokens[1]
-                    date_value = _parse_hsbc_date(combined, statement_year)
-                    if date_value is not None:
-                        # Consume both tokens as date
-                        tokens = [tokens[0] + tokens[1]] + tokens[2:]
+            # Sometimes the date might be split; try combining first two tokens
+            if date_value is None and len(tokens) >= 2:
+                combined = tokens[0] + tokens[1]
+                date_value = _parse_hsbc_date(combined, statement_year)
+                if date_value is not None:
+                    # Consume both tokens as date
+                    tokens = [tokens[0] + tokens[1]] + tokens[2:]
 
             if date_value is None:
                 continue

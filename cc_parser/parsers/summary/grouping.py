@@ -55,8 +55,8 @@ def build_card_summaries(
             grouped[key] = {
                 "card_number": card_number,
                 "person": person,
-                "total": Decimal("0"),
-                "points_total": Decimal("0"),
+                "total": Decimal(0),
+                "points_total": Decimal(0),
                 "transaction_count": 0,
             }
 
@@ -65,7 +65,7 @@ def build_card_summaries(
         grouped[key]["transaction_count"] += 1
 
     summaries: list[CardSummary] = []
-    overall_total = Decimal("0")
+    overall_total = Decimal(0)
     for item in grouped.values():
         total = item["total"]
         overall_total += total

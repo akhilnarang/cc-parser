@@ -33,9 +33,7 @@ def is_malformed(transaction: Transaction) -> bool:
         return True
     if parse_amount(transaction.amount) == 0:
         return True
-    if not transaction.date:
-        return True
-    return False
+    return not transaction.date
 
 
 def should_hard_reject(

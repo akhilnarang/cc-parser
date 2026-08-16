@@ -6,10 +6,10 @@ other atomic tokens extracted from PDF word lists.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
-import re
 from typing import TYPE_CHECKING
 
 from dateutil import parser as date_parser
@@ -162,17 +162,17 @@ def parse_amount(amount: str) -> Decimal:
     try:
         return Decimal(normalized)
     except InvalidOperation:
-        return Decimal("0")
+        return Decimal(0)
 
 
 def parse_points(points: str | None) -> Decimal:
     """Extract numeric reward points from a token."""
     if not points:
-        return Decimal("0")
+        return Decimal(0)
     value = str(points).strip()
     match = re.search(r"\d+", value)
     if not match:
-        return Decimal("0")
+        return Decimal(0)
     return Decimal(match.group(0))
 
 
@@ -183,7 +183,7 @@ def format_amount(value: Decimal) -> str:
 
 def sum_amounts(transactions: list[Transaction]) -> Decimal:
     """Sum the amount field across transaction rows."""
-    total = Decimal("0")
+    total = Decimal(0)
     for txn in transactions:
         total += parse_amount(str(txn.amount or "0"))
     return total
@@ -191,7 +191,7 @@ def sum_amounts(transactions: list[Transaction]) -> Decimal:
 
 def sum_points(transactions: list[Transaction]) -> Decimal:
     """Sum reward points across transaction rows."""
-    total = Decimal("0")
+    total = Decimal(0)
     for txn in transactions:
         total += parse_points(txn.reward_points)
     return total
@@ -200,11 +200,11 @@ def sum_points(transactions: list[Transaction]) -> Decimal:
 __all__ = [
     "AMOUNT_RE",
     "DATE_RE",
-    "DateParseHints",
     "HONORIFIC_RE",
     "MONTH_ABBREVS",
     "SEPARATOR_TOKENS",
     "TIME_RE",
+    "DateParseHints",
     "clean_space",
     "format_amount",
     "normalize_amount",

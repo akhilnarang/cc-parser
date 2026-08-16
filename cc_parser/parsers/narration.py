@@ -3,6 +3,7 @@
 import re
 from typing import Any
 
+from cc_parser.parsers.cards import looks_like_member_header
 from cc_parser.parsers.tokens import (
     SEPARATOR_TOKENS,
     clean_space,
@@ -11,7 +12,6 @@ from cc_parser.parsers.tokens import (
     parse_date_token,
     parse_multi_token_date,
 )
-from cc_parser.parsers.cards import looks_like_member_header
 
 
 def normalize_merchant_name(narration: str, bank: str | None = None) -> str:
@@ -133,9 +133,9 @@ def _is_noise_context_line(tokens: list[str]) -> bool:
     joined_upper = clean_space(" ".join(tokens)).upper()
     if re.search(r"\bPAGE\s+\d+\s+OF\s+\d+\b", joined_upper):
         return True
-    if any(
+    return any(
         phrase in joined_upper
-        for phrase in {
+        for phrase in (
             "DATE & TIME TRANSACTION DESCRIPTION",
             "TRANSACTIONS TOTAL AMOUNT",
             "REWARDS PROGRAM POINTS SUMMARY",
@@ -145,10 +145,8 @@ def _is_noise_context_line(tokens: list[str]) -> bool:
             "BONUS NEUCOINS SUMMARY",
             "TERMS AND CONDITIONS APPLY",
             "SR NO.",
-        }
-    ):
-        return True
-    return False
+        )
+    )
 
 
 def collect_row_context_tokens(
@@ -231,9 +229,7 @@ def needs_context_merge(narration: str) -> bool:
         return True
     if re.search(r"\(Ref#\s*$", narration, flags=re.IGNORECASE):
         return True
-    if "(Ref#" in narration and ")" not in narration:
-        return True
-    return False
+    return "(Ref#" in narration and ")" not in narration
 
 
 def enrich_reference_only_narration(
@@ -322,7 +318,7 @@ def extract_continuation_narration(
             continue
         joined = clean_space(" ".join(candidate)).upper()
         if any(
-            keyword in joined for keyword in {"CONSOLIDATED", "FCY", "MARKUP", "FEE"}
+            keyword in joined for keyword in ("CONSOLIDATED", "FCY", "MARKUP", "FEE")
         ):
             collected.extend(candidate)
 
@@ -342,10 +338,10 @@ def extract_continuation_narration(
 
 
 __all__ = [
-    "normalize_merchant_name",
-    "collect_row_context_tokens",
     "clean_narration_artifacts",
-    "needs_context_merge",
+    "collect_row_context_tokens",
     "enrich_reference_only_narration",
     "extract_continuation_narration",
+    "needs_context_merge",
+    "normalize_merchant_name",
 ]

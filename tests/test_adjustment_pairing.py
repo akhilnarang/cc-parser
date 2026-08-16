@@ -1,26 +1,28 @@
 """Unit tests for adjustment pair detection system."""
 
-import pytest
 from decimal import Decimal
-from cc_parser.parsers.models import Transaction, AdjustmentPair
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
+
+import pytest
+
 from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
+from cc_parser.parsers.adjustment_pairing.candidates import (
+    has_refund_keyword,
+    is_malformed,
+    is_normal_payment_credit,
+    should_early_prune,
+    should_hard_reject,
+)
 from cc_parser.parsers.adjustment_pairing.scoring import (
-    score_candidate_pair,
+    calculate_amount_delta,
     determine_confidence,
     determine_kind,
-    calculate_amount_delta,
     merchant_similarity,
-)
-from cc_parser.parsers.adjustment_pairing.candidates import (
-    is_normal_payment_credit,
-    is_malformed,
-    has_refund_keyword,
-    should_hard_reject,
-    should_early_prune,
+    score_candidate_pair,
 )
 from cc_parser.parsers.match_selection import select_best_non_overlapping_pairs
+from cc_parser.parsers.models import AdjustmentPair, Transaction
 from cc_parser.parsers.narration import normalize_merchant_name
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 
 class TestTransactionIdGeneration:
@@ -286,7 +288,7 @@ class TestScoring:
             transaction_id="txn_002",
         )
 
-        delta_decimal, delta_str, delta_pct = calculate_amount_delta(debit, credit)
+        delta_decimal, _delta_str, delta_pct = calculate_amount_delta(debit, credit)
 
         # Delta should be 50.00
         assert delta_decimal == Decimal("50.00")
@@ -314,7 +316,7 @@ class TestScoring:
             transaction_id="txn_002",
         )
 
-        score, reasons, _, _ = score_candidate_pair(debit, credit)
+        _score, reasons, _, _ = score_candidate_pair(debit, credit)
 
         # Should have person conflict penalty
         assert any("person_conflict" in r for r in reasons)
@@ -338,7 +340,7 @@ class TestScoring:
 
         delta_decimal, delta_str, delta_pct = calculate_amount_delta(debit, credit)
 
-        assert delta_decimal == Decimal("0")
+        assert delta_decimal == Decimal(0)
         assert delta_str == "0.00"
         # Both amounts coerce to 0, so no percentage is reported.
         assert delta_pct is None

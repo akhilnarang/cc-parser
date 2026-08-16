@@ -123,7 +123,7 @@ def extract_card_from_line(tokens: list[str]) -> tuple[str | None, str | None]:
 
     if card_value is None:
         for size in (2, 3):
-            for start in range(0, len(tokens) - size + 1):
+            for start in range(len(tokens) - size + 1):
                 chunk = "".join(
                     normalize_card_token(tokens[start + offset])
                     for offset in range(size)
@@ -259,11 +259,9 @@ def is_invalid_person_label(value: str | None) -> bool:
         return True
     if "CREDIT" in words and "CARD" in words and "STATEMENT" in words:
         return True
-    if any(
+    return any(
         word in {"CARD", "STATEMENT", "DATE", "TIME", "DESCRIPTION"} for word in words
-    ):
-        return True
-    return False
+    )
 
 
 def normalize_transaction_persons(
@@ -312,20 +310,20 @@ def extract_card_from_filename(file_path: str) -> str | None:
 
 
 __all__ = [
+    "CARD_LABEL_WORDS",
     "CARD_TOKEN_RE",
     "CARD_TOKEN_WITH_SEP_RE",
-    "CARD_LABEL_WORDS",
     "NON_MEMBER_HEADERS",
     "NON_NAME_WORDS",
-    "normalize_card_token",
-    "looks_like_card_token",
-    "mask_card_token",
-    "find_card_candidates",
+    "extract_card_from_filename",
     "extract_card_from_line",
-    "looks_like_member_header",
+    "extract_card_number",
+    "find_card_candidates",
     "is_invalid_person_label",
+    "looks_like_card_token",
+    "looks_like_member_header",
+    "mask_card_token",
+    "normalize_card_token",
     "normalize_transaction_persons",
     "split_by_transaction_type",
-    "extract_card_number",
-    "extract_card_from_filename",
 ]

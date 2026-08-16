@@ -1,6 +1,7 @@
 """Transaction ID generation for stable statement-local identifiers."""
 
 import hashlib
+
 from cc_parser.parsers.models import Transaction
 
 
@@ -58,6 +59,6 @@ def assign_transaction_ids(
 
 
 __all__ = [
-    "generate_transaction_id",
     "assign_transaction_ids",
+    "generate_transaction_id",
 ]

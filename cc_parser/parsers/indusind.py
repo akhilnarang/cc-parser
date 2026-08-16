@@ -16,6 +16,7 @@ IndusInd credit card statements differ from other banks in several ways:
 import re
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -34,13 +35,11 @@ from cc_parser.parsers.narration import (
     extract_continuation_narration,
     needs_context_merge,
 )
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     SEPARATOR_TOKENS,
     clean_space,
@@ -52,6 +51,7 @@ from cc_parser.parsers.tokens import (
     sum_amounts,
     sum_points,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 # Regex for member header lines:
 # "Payment Details for MR NAME (Credit Card No. XXXXXXXXXXXX1234)"

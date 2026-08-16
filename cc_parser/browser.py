@@ -17,10 +17,10 @@ from typing import Any
 if "pypdfium2" not in sys.modules:
     sys.modules["pypdfium2"] = types.ModuleType("pypdfium2")
 
-import pdfplumber  # noqa: E402
-from pypdf import PdfReader, PdfWriter  # noqa: E402
+import pdfplumber
+from pypdf import PdfReader, PdfWriter
 
-from cc_parser.parsers.factory import (  # noqa: E402
+from cc_parser.parsers.factory import (
     BankChoice,
     detect_bank,
     get_parser,

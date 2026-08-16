@@ -24,6 +24,7 @@ import re
 from decimal import Decimal
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -34,13 +35,11 @@ from cc_parser.parsers.cards import (
 from cc_parser.parsers.extraction import group_words_into_lines
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
 from cc_parser.parsers.narration import clean_narration_artifacts
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     clean_space,
@@ -50,6 +49,7 @@ from cc_parser.parsers.tokens import (
     sum_amounts,
     sum_points,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 # Matches amounts with or without decimals: "459.17", "25,000", "1,425.50"
 _SLICE_AMOUNT_RE = re.compile(r"^\d[\d,]*(?:\.\d{2})?$")
@@ -195,7 +195,7 @@ def _extract_slice_name(full_text: str, pages: list[dict[str, Any]]) -> str | No
         lines = group_words_into_lines(page.get("words") or [])
         for line_words in lines[:3]:
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
-            if len(tokens) == 1:
+            if len(tokens) == 1:  # noqa: SIM102
                 # Match "NAME's" pattern
                 if match := re.fullmatch(
                     r"([A-Za-z][A-Za-z ]+?)[''\u2019]s", tokens[0]
@@ -436,7 +436,7 @@ def _extract_slice_transactions(
             # Try to parse date from this line (scan all positions
             # in case an extra token precedes the date)
             for start in range(len(next_tokens)):
-                date_val, consumed = _parse_slice_date(next_tokens, start)
+                date_val, _consumed = _parse_slice_date(next_tokens, start)
                 if date_val:
                     date_value = date_val
                     break
@@ -573,7 +573,7 @@ def _extract_slice_account_summary(
 
     if spends or emis:
         # Finance charges = interest + surcharge
-        finance = Decimal("0")
+        finance = Decimal(0)
         if interest:
             finance += parse_amount(interest)
         if surcharge:
@@ -581,7 +581,7 @@ def _extract_slice_account_summary(
         finance_str = format_amount(finance) if finance > 0 else None
 
         # Total credits = refunds + cashback
-        total_credits = Decimal("0")
+        total_credits = Decimal(0)
         if refunds_repayments:
             total_credits += parse_amount(refunds_repayments)
         if cashback:
@@ -591,7 +591,7 @@ def _extract_slice_account_summary(
         )
 
         # Total purchases = spends + emis
-        total_purchases = Decimal("0")
+        total_purchases = Decimal(0)
         if spends:
             total_purchases += parse_amount(spends)
         if emis:

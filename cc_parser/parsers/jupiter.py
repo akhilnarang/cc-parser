@@ -19,6 +19,7 @@ import re
 from decimal import Decimal
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -29,13 +30,11 @@ from cc_parser.parsers.cards import (
 from cc_parser.parsers.extraction import group_words_into_lines
 from cc_parser.parsers.models import ParsedStatement, StatementSummary, Transaction
 from cc_parser.parsers.narration import clean_narration_artifacts
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     clean_space,
@@ -48,6 +47,7 @@ from cc_parser.parsers.tokens import (
     sum_amounts,
     sum_points,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 # Amount regex that also handles whole-number amounts without decimals
 # e.g. "4,500", "25,907", "20,000" as well as "500.00", "734.00"
@@ -259,7 +259,7 @@ def _extract_jupiter_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
         for i, line_words in enumerate(lines):
             tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
             joined = clean_space(" ".join(tokens)).upper()
-            if (
+            if (  # noqa: SIM102
                 joined == "NAME CARD NUMBER"
                 or "NAME" in joined
                 and "CARD NUMBER" in joined
@@ -549,14 +549,13 @@ def _extract_jupiter_transactions(
             narration_end = len(tokens)
 
             for k in range(date_tokens_consumed, len(tokens)):
-                if tokens[k].upper() in ("RS.", "RS"):
-                    if k + 1 < len(tokens):
-                        amt = _parse_jupiter_amount(tokens[k + 1])
-                        if amt:
-                            amount_raw = amt
-                            amount_idx = k + 1
-                            narration_end = k  # Narration ends before "Rs."
-                            break
+                if tokens[k].upper() in ("RS.", "RS") and k + 1 < len(tokens):
+                    amt = _parse_jupiter_amount(tokens[k + 1])
+                    if amt:
+                        amount_raw = amt
+                        amount_idx = k + 1
+                        narration_end = k  # Narration ends before "Rs."
+                        break
 
             # Jupiter always uses "Rs." prefix for amounts; if no "Rs."
             # token was found, this is not a transaction line (e.g. it may
@@ -779,7 +778,7 @@ def _extract_jupiter_account_summary(
 
     if previous_balance or spends or repayments:
         # Compute finance charges = interest + fees + taxes (all non-transaction charges)
-        finance = Decimal("0")
+        finance = Decimal(0)
         if interest_charges:
             finance += parse_amount(interest_charges)
         if fees:
@@ -789,7 +788,7 @@ def _extract_jupiter_account_summary(
         finance_str = format_amount(finance) if finance > 0 else None
 
         # Sum repayments + refunds + waivers for total credits received
-        total_credits = Decimal("0")
+        total_credits = Decimal(0)
         for val in [repayments, refunds, waivers]:
             if val:
                 total_credits += parse_amount(val)

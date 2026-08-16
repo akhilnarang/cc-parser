@@ -12,7 +12,6 @@ from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.models import BonusProgram, ParsedStatement, StatementSummary
 from cc_parser.parsers.tokens import normalize_amount
 
-
 # Page 1 has a "Reward Points  Opening Balance  Feature + Bonus Reward  Disbursed  Adjusted/Lapsed"
 # header. The next text line looks like "<closing> Points Earned" (the "Points Earned"
 # label is misleading — that number is actually the closing balance). The line after

@@ -26,6 +26,10 @@ build-backend = "hatchling.build"
 [tool.uv]
 package = true
 
+[tool.ruff.lint.flake8-bugbear]
+# Typer reads option and argument metadata from calls in parameter defaults.
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",

@@ -7,17 +7,17 @@ Workflow:
 4) print rich tables for quick inspection.
 """
 
-import getpass
 import csv
+import getpass
 import json
 import uuid
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+import typer
 from rich.console import Console
 from rich.table import Table
-import typer
 
 from cc_parser.extractor import extract_raw_pdf, is_pdf_encrypted
 from cc_parser.parsers.factory import detect_bank, get_parser

@@ -15,6 +15,7 @@ IDFC credit card statements differ from other banks in several ways:
 import re
 from typing import Any
 
+from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.base import StatementParser
 from cc_parser.parsers.cards import (
     extract_card_from_filename,
@@ -30,13 +31,11 @@ from cc_parser.parsers.narration import (
     extract_continuation_narration,
     needs_context_merge,
 )
-from cc_parser.parsers.adjustment_pairing import detect_adjustment_pairs
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
 from cc_parser.parsers.summary.reconciliation import build_reconciliation
-from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 from cc_parser.parsers.tokens import (
     MONTH_ABBREVS,
     SEPARATOR_TOKENS,
@@ -50,6 +49,7 @@ from cc_parser.parsers.tokens import (
     sum_amounts,
     sum_points,
 )
+from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
 # Section headers and noise lines that should not be treated as member names
 IDFC_NON_MEMBER_HEADERS = {
@@ -278,18 +278,21 @@ def _extract_idfc_total_amount_due(
                         return "-" + result if is_credit else result
 
             # Header row with "Total Amount Due" but not "Minimum" (e.g. Wealth)
-            if "TOTAL AMOUNT DUE" in joined and "MINIMUM AMOUNT DUE" not in joined:
-                if i + 1 < len(lines):
-                    next_tokens = [
-                        normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
-                    ]
-                    is_credit = _line_has_cr_marker(next_tokens)
-                    for t in next_tokens:
-                        stripped = _strip_rupee_prefix(t)
-                        amt = parse_amount_token(stripped)
-                        if amt:
-                            result = normalize_amount(amt)
-                            return "-" + result if is_credit else result
+            if (
+                "TOTAL AMOUNT DUE" in joined
+                and "MINIMUM AMOUNT DUE" not in joined
+                and i + 1 < len(lines)
+            ):
+                next_tokens = [
+                    normalize_token(str(w.get("text", ""))) for w in lines[i + 1]
+                ]
+                is_credit = _line_has_cr_marker(next_tokens)
+                for t in next_tokens:
+                    stripped = _strip_rupee_prefix(t)
+                    amt = parse_amount_token(stripped)
+                    if amt:
+                        result = normalize_amount(amt)
+                        return "-" + result if is_credit else result
 
     # Fallback: "Total Amount Due = rXXX" inline equation
     match = re.search(

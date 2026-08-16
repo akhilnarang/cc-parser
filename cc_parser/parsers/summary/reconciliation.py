@@ -13,7 +13,7 @@ from cc_parser.parsers.tokens import (
 
 def _to_decimal(amount: str | None) -> Decimal:
     if not amount:
-        return Decimal("0")
+        return Decimal(0)
     return parse_amount(amount)
 
 
@@ -72,7 +72,7 @@ def build_reconciliation(
                 dated_credits.append((dt, amount))
         dated_credits.sort(key=lambda item: item[0])
 
-        running = Decimal("0")
+        running = Decimal(0)
         for dt, amount in dated_credits:
             running += amount
             if running >= prev_dues:

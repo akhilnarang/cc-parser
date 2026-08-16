@@ -10,12 +10,11 @@ from typing import Any
 from cc_parser.parsers.cards import NON_NAME_WORDS
 from cc_parser.parsers.generic import GenericParser
 from cc_parser.parsers.models import ParsedStatement, StatementSummary
-from cc_parser.parsers.tokens import format_amount, normalize_amount, sum_amounts
 from cc_parser.parsers.summary.grouping import (
     build_card_summaries,
     group_transactions_by_person,
 )
-
+from cc_parser.parsers.tokens import format_amount, normalize_amount, sum_amounts
 
 _BREAKDOWN_HEADER = re.compile(
     r"Previous Balance\s+Purchases\s*/\s*Charges\s+Cash Advances\s+Payments\s*/\s*Credits",

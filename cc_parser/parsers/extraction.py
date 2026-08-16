@@ -8,26 +8,26 @@ reward points, and credit/debit classification.
 import re
 from typing import Any, NamedTuple
 
-from cc_parser.parsers.models import Transaction
-from cc_parser.parsers.tokens import (
-    SEPARATOR_TOKENS,
-    clean_space,
-    normalize_token,
-    normalize_amount,
-    parse_amount_token,
-    parse_date_token,
-    parse_time_token,
-)
 from cc_parser.parsers.cards import (
     extract_card_from_line,
     looks_like_member_header,
 )
+from cc_parser.parsers.models import Transaction
 from cc_parser.parsers.narration import (
     clean_narration_artifacts,
     collect_row_context_tokens,
     enrich_reference_only_narration,
     extract_continuation_narration,
     needs_context_merge,
+)
+from cc_parser.parsers.tokens import (
+    SEPARATOR_TOKENS,
+    clean_space,
+    normalize_amount,
+    normalize_token,
+    parse_amount_token,
+    parse_date_token,
+    parse_time_token,
 )
 
 _SUMMARY_KEYWORDS = {
@@ -104,10 +104,7 @@ def _is_summary_row(narration: str) -> bool:
 
     # Reject "single small integer" narrations (e.g. "9", "12")
     # These appear when a page/count number sits between date and amount.
-    if re.fullmatch(r"\d{1,4}", stripped):
-        return True
-
-    return False
+    return bool(re.fullmatch(r"\d{1,4}", stripped))
 
 
 def _narration_rejection(narration: str) -> str | None:
@@ -794,8 +791,8 @@ def extract_transactions(
 
 
 __all__ = [
-    "group_words_into_lines",
-    "derive_description_column_x0",
     "classify_credit_transaction",
+    "derive_description_column_x0",
     "extract_transactions",
+    "group_words_into_lines",
 ]
