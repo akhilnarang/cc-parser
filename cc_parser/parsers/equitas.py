@@ -26,14 +26,16 @@ _MEMBER_HEADER_RE = re.compile(
 )
 # The ``Total Due`` amount and ``Due Date`` sit between the ``Total Due:`` label
 # and the ``Opening Balance Payments/Credits`` header on page 1. Their in-block
-# order is not stable across statement months: some months emit
-# ``Total Due: Due Date:\n₹<amt> <DD Month YYYY>`` on two tidy lines, others emit
-# the ``Due Date:`` label first and split the date around the amount, e.g.
-# ``DD Month`` / ``₹<amt>`` / ``YYYY``. So we bound the window and pull the
-# amount and the date out independently rather than matching a fixed sequence.
+# order is not stable across statement months. Some months emit a full
+# ``DD Month YYYY``. Others split the date around the amount, e.g. ``DD Month`` /
+# ``₹<amt>`` / ``YYYY``. One layout spills the year past the header, leaving only
+# ``DD Month`` in the window. So we bound the window and pull the amount and date
+# out independently rather than matching a fixed sequence.
 _TOTAL_DUE_ANCHOR_RE = re.compile(r"Total\s+Due\s*:", re.IGNORECASE)
 _SUMMARY_END_ANCHOR_RE = re.compile(r"Opening\s+Balance\s+Payments", re.IGNORECASE)
 _LONG_DATE_RE = re.compile(r"\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}")
+_DAY_MONTH_RE = re.compile(r"\d{1,2}\s+[A-Za-z]{3,9}")
+_YEAR_RE = re.compile(r"\b20\d{2}\b")
 _MINIMUM_DUE_LINE_RE = re.compile(r"Minimum\s+Due\s*:[^\n]*", re.IGNORECASE)
 _REWARD_SUMMARY_RE = re.compile(
     r"Reward\s+Points\s+Summary\s+"
@@ -114,6 +116,9 @@ def _extract_total_due_and_date(page_text: str) -> tuple[str | None, str | None]
     extractor try rather than emit a confidently-wrong total or due date. The
     ``Minimum Due:`` line is dropped defensively in case a future layout pulls
     it inside the window — its amount must never be mistaken for the total due.
+
+    One layout spills the year past the header, leaving only ``DD Month`` in the
+    window with the year on the header line. We reunite the two.
     """
     start = _TOTAL_DUE_ANCHOR_RE.search(page_text)
     end = _SUMMARY_END_ANCHOR_RE.search(page_text)
@@ -125,10 +130,18 @@ def _extract_total_due_and_date(page_text: str) -> tuple[str | None, str | None]
     amounts = _CURRENCY_AMOUNT_RE.findall(window)
     total_due = normalize_amount(amounts[0]) if len(amounts) == 1 else None
 
-    dates = _LONG_DATE_RE.findall(clean_space(_CURRENCY_AMOUNT_RE.sub(" ", window)))
-    due_date = parse_date(dates[0]) if len(dates) == 1 else None
+    text = clean_space(_CURRENCY_AMOUNT_RE.sub(" ", window))
+    dates = _LONG_DATE_RE.findall(text)
+    if len(dates) == 1:
+        return total_due, parse_date(dates[0])
+    if dates:
+        return total_due, None
 
-    return total_due, due_date
+    day_months = _DAY_MONTH_RE.findall(text)
+    header_years = _YEAR_RE.findall(page_text[end.start() :].split("\n", 1)[0])
+    if len(day_months) == 1 and len(header_years) == 1:
+        return total_due, parse_date(f"{day_months[0]} {header_years[0]}")
+    return total_due, None
 
 
 def _extract_equitas_summary(

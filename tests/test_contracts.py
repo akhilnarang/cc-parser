@@ -415,6 +415,39 @@ class EquitasSummaryWindowTests(unittest.TestCase):
         )
         self.assertEqual(_extract_total_due_and_date(text), ("12,345.67", "15/09/2026"))
 
+    def test_year_spilled_past_header_is_reunited_with_day_month(self) -> None:
+        """One layout keeps only ``DD Month`` in the window and pushes the year
+        onto the summary header line. Rejoin the two into the due date."""
+        text = (
+            "Due Date:\nStatement Summary Total Due:\n"
+            "09\n₹1,111.11\nSeptember\n"
+            "Opening Balance Payments/Credits Spends/Charges 2026\n"
+            "Minimum Due: ₹ 555.55"
+        )
+        self.assertEqual(_extract_total_due_and_date(text), ("1,111.11", "09/09/2026"))
+
+    def test_two_partial_dates_in_window_bail_to_none(self) -> None:
+        """The spilled-year path mirrors the full-date policy: more than one
+        ``DD Month`` in the window is ambiguous, so return None for the date."""
+        text = (
+            "Total Due:\n09 September 22 October\n₹1,111.11\n"
+            "Opening Balance Payments/Credits Spends/Charges 2026"
+        )
+        total_due, due_date = _extract_total_due_and_date(text)
+        self.assertEqual(total_due, "1,111.11")
+        self.assertIsNone(due_date)
+
+    def test_two_years_on_header_line_bail_to_none(self) -> None:
+        """The year is rejoined only when the header line holds exactly one.
+        Two years is ambiguous, so return None rather than guessing the first."""
+        text = (
+            "Total Due:\n09 September\n₹1,111.11\n"
+            "Opening Balance Payments/Credits Spends/Charges 2025 2026"
+        )
+        total_due, due_date = _extract_total_due_and_date(text)
+        self.assertEqual(total_due, "1,111.11")
+        self.assertIsNone(due_date)
+
     def test_ambiguous_multi_amount_window_bails_to_none(self) -> None:
         """More than one amount in the window is an unseen layout: return None
         for the total rather than guessing the first match."""
