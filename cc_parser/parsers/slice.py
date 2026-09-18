@@ -18,6 +18,12 @@ Slice credit card statements differ from other banks in several ways:
 - Statement summary uses labeled rows: Spends, Refunds & repayments,
   Cashback, Interest, Surcharge, EMIs, Total amount due, Min amount due
 - Cashback is a distinct section and should NOT be paired as adjustments
+- An ``EMIs`` row prints the ORIGINAL purchase date, not the instalment
+  date. Every instalment of one EMI therefore repeats one date, so two
+  instalments are indistinguishable by date and land in the wrong month.
+  ``_extract_slice_transactions`` restamps an EMI row onto the statement
+  period end (the cycle close, when slice bills the instalment) and keeps
+  the printed purchase date in ``credit_reasons``.
 """
 
 import re
@@ -86,8 +92,7 @@ def _merge_orphan_rupee_lines(
             # this orphan belongs to something else. Drop it rather than
             # rewriting unrelated numerics on that line.
             has_glued_amount = any(
-                normalize_token(str(w.get("text", ""))).startswith("₹")
-                for w in prev
+                normalize_token(str(w.get("text", ""))).startswith("₹") for w in prev
             )
             if not has_glued_amount and prev:
                 # Only attach to the final token, and only if it is
@@ -104,6 +109,7 @@ def _merge_orphan_rupee_lines(
             continue
         merged.append(line)
     return merged
+
 
 # Section name constants
 _SECTION_SPENDS = "SPENDS"
@@ -173,6 +179,45 @@ def _parse_slice_date(tokens: list[str], start: int) -> tuple[str | None, int]:
     day_padded = day.zfill(2)
     year = year_cleaned if len(year_cleaned) == 4 else f"20{year_cleaned}"
     return f"{day_padded}/{month}/{year}", 3
+
+
+# Matches the statement period header, e.g. ``21 MAR - 20 APR``. Slice
+# prints it on page 1 under the card number and omits the year.
+_PERIOD_RE = re.compile(
+    r"^(\d{1,2})\s+([A-Za-z]{3})\s*[-\u2013\u2014]\s*(\d{1,2})\s+([A-Za-z]{3})$"
+)
+
+
+def _extract_slice_period_end(
+    pages: list[dict[str, Any]], year: str | None
+) -> str | None:
+    """Find the statement period end date on page 1.
+
+    Slice prints ``DD Mon - DD Mon`` with no year. The end month is the
+    statement month, so it takes *year* directly. A period that straddles
+    a year boundary (Dec - Jan) still ends in *year*, because the year is
+    inferred from the newest transaction dates.
+
+    Args:
+        pages: Raw extracted pages.
+        year: Four-digit year inferred from the statement text.
+
+    Returns:
+        The period end as ``DD/MM/YYYY``, or ``None`` if not found.
+    """
+    if not year:
+        return None
+    for page in pages[:1]:
+        lines = group_words_into_lines(page.get("words") or [])
+        for line_words in lines:
+            tokens = [normalize_token(str(w.get("text", ""))) for w in line_words]
+            joined = clean_space(" ".join(tokens))
+            if not (match := _PERIOD_RE.fullmatch(joined)):
+                continue
+            if (month := MONTH_ABBREVS.get(match.group(4).upper()[:3])) is None:
+                continue
+            return f"{match.group(3).zfill(2)}/{month}/{year}"
+    return None
 
 
 def _infer_year_from_text(full_text: str) -> str | None:
@@ -315,6 +360,7 @@ def _extract_slice_total_amount_due(
 
 def _extract_slice_transactions(
     pages: list[dict[str, Any]],
+    period_end: str | None = None,
 ) -> tuple[list[Transaction], dict[str, Any]]:
     """Parse transactions from Slice statement pages.
 
@@ -328,6 +374,18 @@ def _extract_slice_transactions(
 
     Only standalone section headers (without ₹ amounts) activate transaction
     parsing. Summary rows like ``Spends ₹35,898.67`` on page 1 are skipped.
+
+    An ``EMIs`` row prints the original purchase date, which repeats on
+    every instalment. Given *period_end*, such a row is restamped onto the
+    cycle close and the printed purchase date moves to ``credit_reasons``.
+
+    Args:
+        pages: Raw extracted pages.
+        period_end: Statement period end as ``DD/MM/YYYY``, used to date
+            EMI instalments. Without it EMI rows keep the printed date.
+
+    Returns:
+        ``(transactions, debug)``.
     """
     transactions: list[Transaction] = []
     date_lines: list[dict[str, Any]] = []
@@ -471,6 +529,13 @@ def _extract_slice_transactions(
         credit_reason: str | None = None
         if is_credit:
             credit_reason = f"section:{current_section.lower()}"
+
+        # An EMI row carries the original purchase date, repeated on every
+        # instalment. Bill it on the cycle close instead, and keep the
+        # printed date as provenance.
+        if current_section == _SECTION_EMIS and period_end:
+            credit_reason = f"emi_purchase_date:{date_value}"
+            date_value = period_end
 
         amount_normalized = _normalize_slice_amount(amount_raw)
 
@@ -627,7 +692,8 @@ class SliceParser(StatementParser):
             full_text, pages
         ) or extract_card_from_filename(str(raw_data["file"]))
 
-        transactions, txn_debug = _extract_slice_transactions(pages)
+        period_end = _extract_slice_period_end(pages, _infer_year_from_text(full_text))
+        transactions, txn_debug = _extract_slice_transactions(pages, period_end)
         self._last_txn_debug = txn_debug
         self._last_transactions = transactions
 
@@ -715,7 +781,11 @@ class SliceParser(StatementParser):
             txn_debug = self._last_txn_debug
             transactions = self._last_transactions
         else:
-            transactions, txn_debug = _extract_slice_transactions(pages)
+            full_text = "\n".join(str(page.get("text", "")) for page in pages)
+            transactions, txn_debug = _extract_slice_transactions(
+                pages,
+                _extract_slice_period_end(pages, _infer_year_from_text(full_text)),
+            )
 
         return {
             "bank": self.bank,
