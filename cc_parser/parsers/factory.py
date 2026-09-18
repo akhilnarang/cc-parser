@@ -1,7 +1,8 @@
 """Parser selection utilities.
 
-`detect_bank` prefers the first-page header region and filename over the full
-statement body so transaction merchant text does not dominate bank detection.
+`detect_bank` prefers the first-page header region, the PDF `/Title`, and the
+filename over the full statement body so transaction merchant text does not
+dominate bank detection.
 It still keeps the existing heuristic ordering because several issuers mention
 other banks in fine print. In particular: IndusInd must be checked before
 ICICI (`ICICI Lombard` appears on some IndusInd statements), `AXIS BANK`
@@ -30,11 +31,13 @@ class DetectionRule:
         bank: Parser slug returned on match.
         header_tokens: Tokens searched in the first-page header region.
         file_tokens: Optional filename-only tokens. Defaults to `header_tokens`.
+        title_tokens: Optional PDF `/Title` tokens. Defaults to `header_tokens`.
     """
 
     bank: str
     header_tokens: tuple[str, ...]
     file_tokens: tuple[str, ...] | None = None
+    title_tokens: tuple[str, ...] | None = None
 
     def header_matches(self, header: str) -> bool:
         """Return True when the header region matches this rule."""
@@ -43,6 +46,10 @@ class DetectionRule:
     def file_matches(self, file_name: str) -> bool:
         """Return True when the filename matches this rule."""
         return _contains_any(file_name, self.file_tokens or self.header_tokens)
+
+    def title_matches(self, title: str) -> bool:
+        """Return True when the PDF document title matches this rule."""
+        return _contains_any(title, self.title_tokens or self.header_tokens)
 
 
 _HEADER_STOP_MARKERS = (
@@ -104,13 +111,31 @@ def _extract_detection_header(raw_data: dict[str, Any]) -> str:
     return "\n".join(header_lines).upper()
 
 
+def _extract_detection_title(raw_data: dict[str, Any]) -> str:
+    """Return the PDF document title used for bank detection.
+
+    Slice renders its statements from HTML and prints no bank branding in
+    the page header, so the `/Title` is the only in-document identity
+    signal. Detection must not depend on the filename: the dashboard
+    parses email attachments from a temporary file whose name carries no
+    bank token.
+    """
+    metadata = raw_data.get("metadata")
+    if not isinstance(metadata, dict):
+        return ""
+    pypdf_metadata = metadata.get("pypdf")
+    if not isinstance(pypdf_metadata, dict):
+        return ""
+    return str(pypdf_metadata.get("/Title", "") or "").upper()
+
+
 def _contains_any(value: str, candidates: tuple[str, ...]) -> bool:
     """Return True when any candidate substring appears in the value."""
     return any(candidate in value for candidate in candidates)
 
 
 def detect_bank(raw_data: dict[str, Any]) -> str:
-    """Infer bank profile from first pages and input file name.
+    """Infer bank profile from the first-page header, PDF title, and file name.
 
     Args:
         raw_data: Raw extraction payload.
@@ -119,6 +144,7 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
         One of: `icici`, `hdfc`, `sbi`, `idfc`, `indusind`, `hsbc`, `axis`, `jupiter`, `slice`, `ssfb`, `bob`, `yesbank`, `equitas`, or `generic`.
     """
     header = _extract_detection_header(raw_data)
+    title = _extract_detection_title(raw_data)
     # Use basename only for filename checks to avoid matching directory names
     # (e.g. /statements/hsbc/some_other_bank.pdf).
     file_name = Path(raw_data.get("file", "")).name.upper()
@@ -133,7 +159,11 @@ def detect_bank(raw_data: dict[str, Any]) -> str:
     # Check YES BANK before generic — YES BANK statements contain
     # "YES BANK" prominently in the header.
     for rule in _BANK_DETECTION_RULES:
-        if rule.header_matches(header) or rule.file_matches(file_name):
+        if (
+            rule.header_matches(header)
+            or rule.title_matches(title)
+            or rule.file_matches(file_name)
+        ):
             return rule.bank
     return "generic"
 

@@ -36,7 +36,8 @@ Primary goals:
 - `cc_parser/parsers/factory.py`
   - bank detection heuristics and dispatch,
   - detection order comments are part of the compatibility contract,
-  - auto-detection should prefer first-page header branding plus filename over full statement body text.
+  - auto-detection should prefer first-page header branding, the PDF `/Title`,
+    and the filename over full statement body text.
 
 - `cc_parser/parsers/registry.py`
   - canonical parser registry used by the CLI/browser/factory.
@@ -148,7 +149,7 @@ When modifying parser logic:
 - **Date format is DD/MM/YYYY**: `bank-email-fetcher` parses with `strptime(date, "%d/%m/%Y")`.
 - **Amount strings are comma-separated**: Expects `"25,000.00"`, strips commas to convert to Decimal.
 - **Detection order matters**: In `factory.py`, IndusInd before ICICI, HSBC/Jupiter before SBI. Wrong order causes misclassification.
-- **Detection scope matters too**: Auto-detection should prefer first-page header/branding and filename. Whole-statement text can contain merchant rows mentioning other banks.
+- **Detection scope matters too**: Auto-detection should prefer first-page header/branding, the PDF `/Title`, and the filename. Whole-statement text can contain merchant rows mentioning other banks. Do not rely on the filename alone: a caller that parses an email attachment writes it to a temporary file whose name holds no bank token.
 - **Registry order matters too**: CLI/browser bank lists come from `parsers/registry.py`; keep that order stable unless you intentionally change user-facing surfaces and tests.
 - **Pyodide package changes are coupled**: if parser imports need new pure-Python deps, update both `pyproject.toml` and `web/worker.js`.
 
