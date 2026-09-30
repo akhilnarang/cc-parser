@@ -71,6 +71,14 @@ class DueDateContractTests(unittest.TestCase):
 
         self.assertEqual(extract_due_date_from_pages(pages), "23/05/2026")
 
+        # A long month centred under the header starts left of the header.
+        pages[0]["words"][-3:] = [
+            {"text": "September", "doctop": 30, "x0": -2, "x1": 51},
+            {"text": "23,", "doctop": 30, "x0": 54, "x1": 68},
+            {"text": "2026", "doctop": 30, "x0": 71, "x1": 95},
+        ]
+        self.assertEqual(extract_due_date_from_pages(pages), "23/09/2026")
+
     def test_extract_due_date_from_pages_skips_statement_date_header(self) -> None:
         # Why: "STATEMENT DATE" tokens contain "DATE" but not "DUE";
         # must not be mistaken for the due-date header even when doubled.
