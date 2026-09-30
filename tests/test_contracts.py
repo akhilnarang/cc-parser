@@ -79,6 +79,17 @@ class DueDateContractTests(unittest.TestCase):
         ]
         self.assertEqual(extract_due_date_from_pages(pages), "23/09/2026")
 
+        # A left-column date whose first word ends just inside the band stays out.
+        pages[0]["words"][-3:] = [
+            {"text": "September", "doctop": 25, "x0": -45, "x1": 1},
+            {"text": "5,", "doctop": 25, "x0": 4, "x1": 10},
+            {"text": "2026", "doctop": 25, "x0": 13, "x1": 37},
+            {"text": "October", "doctop": 30, "x0": 40, "x1": 80},
+            {"text": "23,", "doctop": 30, "x0": 83, "x1": 97},
+            {"text": "2026", "doctop": 30, "x0": 100, "x1": 124},
+        ]
+        self.assertEqual(extract_due_date_from_pages(pages), "23/10/2026")
+
     def test_extract_due_date_from_pages_skips_statement_date_header(self) -> None:
         # Why: "STATEMENT DATE" tokens contain "DATE" but not "DUE";
         # must not be mistaken for the due-date header even when doubled.

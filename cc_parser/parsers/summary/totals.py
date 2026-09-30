@@ -151,9 +151,8 @@ def _due_date_below_header(
         w for w in words
         if header_y < float(w.get("doctop", 0)) <= header_y + _DUE_DATE_LOOKAHEAD
         # A centred value can start left of its header ("September" under
-        # "PAYMENT DUE DATE"), so test for overlap, not for the left edge.
-        and _word_right(w) >= x_min - 10
-        and float(w.get("x0", 0)) <= x_max + 30
+        # "PAYMENT DUE DATE"), so test the word centre, not the left edge.
+        and x_min - 10 <= (float(w.get("x0", 0)) + _word_right(w)) / 2 <= x_max + 30
     ]
     if not below:
         return None
