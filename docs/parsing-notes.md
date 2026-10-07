@@ -28,6 +28,8 @@ Extraction caveats that parser accounts for:
 - OCR/font artifacts (`(cid:...)`, duplicated characters, broken spacing).
 - Mixed separators (`|`, irregular spaces, merged tokens).
 - Credit markers (for example, `CR` or bare `C`/`D` for SBI, `DR`/`CR` for IDFC, `CR` suffix for HSBC, `Cr`/`Dr` for Axis) that indicate refunds/payments.
+- Masked card numbers split into groups on one line (`1234 56XX XXXX 7890`). A card number never spans a line break, and a split mask keeps its trailing visible digits. A number that starts with `0000` is a pseudo number, not a card.
+- Slice due dates without a year (`Due on 5 Jan`). The due date follows the period end, so a due month before the period-end month falls in the next year.
 - Page-1 bank branding that should be preferred over merchant text when auto-detecting the issuer.
 - Equitas-style page-1 summaries where `Total Due` / `Due Date` live above the transaction grid and MITC/example pages later in the PDF contain unrelated sample totals.
 - HSBC payment-summary labels that may not survive text extraction. The parser uses the page-1 statement-period row to recover `Total payment due` and does not substitute `Net outstanding balance`, because that balance can include future loan instalments.
