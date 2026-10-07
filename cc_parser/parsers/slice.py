@@ -284,11 +284,22 @@ def _extract_slice_card_number(
     return candidates[0] if candidates else None
 
 
-def _extract_slice_due_date(full_text: str, pages: list[dict[str, Any]]) -> str | None:
+def _due_year(year: str, month: str, period_end: str | None) -> str:
+    """A due month before the period-end month falls in the next year."""
+    if period_end and month < period_end[3:5]:
+        return str(int(year) + 1)
+    return year
+
+
+def _extract_slice_due_date(
+    full_text: str, pages: list[dict[str, Any]], period_end: str | None
+) -> str | None:
     """Extract due date from Slice statement.
 
     Slice uses ``Due on DD Mon`` format (e.g. ``Due on 5 Apr``) without
     an explicit year. The year is inferred from transaction dates in the text.
+    The due date follows the period end, so a December period is due in
+    January of the next year.
     """
     year = _infer_year_from_text(full_text)
 
@@ -311,7 +322,7 @@ def _extract_slice_due_date(full_text: str, pages: list[dict[str, Any]]) -> str 
                 if (
                     month := MONTH_ABBREVS.get(due_match.group(2).upper()[:3])
                 ) and year:
-                    return f"{day}/{month}/{year}"
+                    return f"{day}/{month}/{_due_year(year, month, period_end)}"
 
     # Text fallback
     if match := re.search(
@@ -321,7 +332,7 @@ def _extract_slice_due_date(full_text: str, pages: list[dict[str, Any]]) -> str 
     ):
         day = match.group(1).zfill(2)
         if (month := MONTH_ABBREVS.get(match.group(2).upper()[:3])) and year:
-            return f"{day}/{month}/{year}"
+            return f"{day}/{month}/{_due_year(year, month, period_end)}"
 
     return None
 
@@ -746,7 +757,7 @@ class SliceParser(StatementParser):
         credit_total = sum_amounts(credit_transactions)
         overall_reward_points = sum_points(debit_transactions)
 
-        due_date = _extract_slice_due_date(full_text, pages)
+        due_date = _extract_slice_due_date(full_text, pages, period_end)
         statement_total_amount_due = _extract_slice_total_amount_due(full_text, pages)
         summary_fields = _extract_slice_account_summary(pages)
         reconciliation = build_reconciliation(

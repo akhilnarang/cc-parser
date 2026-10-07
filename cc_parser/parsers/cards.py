@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from cc_parser.parsers.models import Transaction
@@ -19,7 +19,7 @@ from cc_parser.parsers.tokens import (
 
 CARD_TOKEN_RE = re.compile(r"(?<![0-9A-Za-z])[0-9Xx*]{10,20}(?![0-9A-Za-z])")
 CARD_TOKEN_WITH_SEP_RE = re.compile(
-    r"(?<![0-9A-Za-z])[0-9Xx*][0-9Xx*\s-]{8,30}[0-9Xx*](?![0-9A-Za-z])"
+    r"(?<![0-9A-Za-z])[0-9Xx*][0-9Xx* \t-]{8,30}[0-9Xx*](?![0-9A-Za-z])"
 )
 CARD_LABEL_WORDS = {
     "CREDIT",
@@ -72,6 +72,10 @@ def looks_like_card_token(token: str) -> bool:
     normalized = normalize_card_token(token)
     if not (10 <= len(normalized) <= 20):
         return False
+    if normalized.startswith("0000"):
+        # A real card number never starts with 0000. ICICI prints such a
+        # pseudo number above a section that holds only reward credits.
+        return False
     digit_count = sum(ch.isdigit() for ch in normalized)
     x_count = normalized.count("X")
     return digit_count >= 6 and x_count >= 2
@@ -109,47 +113,62 @@ def find_card_candidates(text: str) -> list[str]:
     return found
 
 
+class CardSpan(NamedTuple):
+    """A masked card number and the line tokens it was read from."""
+
+    indices: range
+    value: str
+
+
+def _find_card_span(tokens: list[str]) -> CardSpan | None:
+    """Find a card number in one token, or split over 2-3 adjacent tokens.
+
+    A mask ends in visible digits. When a split chunk stops on a masked
+    group, the next token supplies those digits.
+
+    Args:
+        tokens: Raw line tokens.
+
+    Returns:
+        The card span, or ``None`` when the line holds no card number.
+    """
+    for index, token in enumerate(tokens):
+        if looks_like_card_token(normalized := normalize_card_token(token)):
+            return CardSpan(range(index, index + 1), mask_card_token(normalized))
+
+    for size in (2, 3):
+        for start in range(len(tokens) - size + 1):
+            end = start + size
+            chunk = "".join(normalize_card_token(t) for t in tokens[start:end])
+            if not looks_like_card_token(chunk):
+                continue
+            if (
+                chunk.endswith("X")
+                and end < len(tokens)
+                and re.fullmatch(r"\d{2,4}", tokens[end])
+            ):
+                chunk += tokens[end]
+                end += 1
+            return CardSpan(range(start, end), mask_card_token(chunk))
+    return None
+
+
 def extract_card_from_line(tokens: list[str]) -> tuple[str | None, str | None]:
     """Extract card and optional member label from a tokenized line."""
-    card_indices: list[int] = []
-    card_value: str | None = None
-
-    for index, token in enumerate(tokens):
-        normalized = normalize_card_token(token)
-        if looks_like_card_token(normalized):
-            card_indices = [index]
-            card_value = mask_card_token(normalized)
-            break
-
-    if card_value is None:
-        for size in (2, 3):
-            for start in range(len(tokens) - size + 1):
-                chunk = "".join(
-                    normalize_card_token(tokens[start + offset])
-                    for offset in range(size)
-                )
-                if looks_like_card_token(chunk):
-                    card_indices = list(range(start, start + size))
-                    card_value = mask_card_token(chunk)
-                    break
-            if card_value:
-                break
-
-    if card_value is None:
+    if (span := _find_card_span(tokens)) is None:
         return None, None
-
-    candidate_tokens = [
-        token for i, token in enumerate(tokens) if i not in set(card_indices)
-    ]
     words_only = []
-    for token in candidate_tokens:
+    for token in tokens[: span.indices.start] + tokens[span.indices.stop :]:
         cleaned = re.sub(r"[^A-Za-z.'-]", "", token)
         if not cleaned:
             continue
         key = re.sub(r"[^A-Za-z]", "", cleaned).upper()
-        if key in CARD_LABEL_WORDS:
-            continue
-        if key in {"SPENDS", "OVERVIEW", "TRANSACTION", "DETAILS"}:
+        if key in CARD_LABEL_WORDS or key in {
+            "SPENDS",
+            "OVERVIEW",
+            "TRANSACTION",
+            "DETAILS",
+        }:
             continue
         if len(cleaned) == 1:
             continue
@@ -169,7 +188,7 @@ def extract_card_from_line(tokens: list[str]) -> tuple[str | None, str | None]:
         if len(parts) < 2 or not all(len(p) >= 3 for p in parts):
             member = None
 
-    return card_value, member
+    return span.value, member
 
 
 def _strip_member_annotations(tokens: list[str]) -> list[str]:

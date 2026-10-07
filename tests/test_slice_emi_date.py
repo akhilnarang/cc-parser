@@ -9,6 +9,7 @@ purchase date as provenance.
 """
 
 from cc_parser.parsers.slice import (
+    _extract_slice_due_date,
     _extract_slice_period_end,
     _extract_slice_transactions,
 )
@@ -127,3 +128,12 @@ def test_spends_row_keeps_its_printed_date():
     assert len(txns) == 1
     assert txns[0].date == "10/04/2026"
     assert txns[0].credit_reasons is None
+
+
+def test_due_date_after_a_december_period_is_in_the_next_year():
+    """Slice prints the due date without a year. A December period is due
+    in January, so the year must roll over."""
+    text = "Due on 5 Jan\n15 Dec '25"
+    assert _extract_slice_due_date(text, [], "20/12/2025") == "05/01/2026"
+    text = "Due on 5 Dec\n15 Nov '25"
+    assert _extract_slice_due_date(text, [], "20/11/2025") == "05/12/2025"
