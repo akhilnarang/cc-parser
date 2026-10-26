@@ -57,11 +57,11 @@ async function initPyodide() {
   await pyodide.runPythonAsync(`
 import micropip
 await micropip.install([
-    "pypdf==6.10.2",
-    "pdfminer.six==20251230",
-    "python-dateutil==2.9.0.post0",
+    "pypdf==6.21.2",
+    "pdfminer.six==20260107",
+    "python-dateutil==3.0.0",
 ])
-await micropip.install("pdfplumber==0.11.9", deps=False)
+await micropip.install("pdfplumber==0.11.10", deps=False)
 `);
 
   // Mount cc_parser source files into the Pyodide virtual filesystem.
