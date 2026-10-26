@@ -148,7 +148,8 @@ def _due_date_below_header(
     x_max: float,
 ) -> str | None:
     below = [
-        w for w in words
+        w
+        for w in words
         if header_y < float(w.get("doctop", 0)) <= header_y + _DUE_DATE_LOOKAHEAD
         # A centred value can start left of its header ("September" under
         # "PAYMENT DUE DATE"), so test the word centre, not the left edge.
@@ -175,9 +176,7 @@ def extract_due_date_from_pages(pages: list[dict[str, Any]]) -> str | None:
                 if "DUE" not in upper or "DATE" not in upper:
                     continue
 
-                if same_line := _search_due_date_in_line(
-                    clean_space(" ".join(tokens))
-                ):
+                if same_line := _search_due_date_in_line(clean_space(" ".join(tokens))):
                     return same_line
 
                 x_min, x_max = _chunk_x_bounds(chunk)

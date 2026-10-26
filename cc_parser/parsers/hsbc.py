@@ -1028,10 +1028,7 @@ def _canonicalize_hsbc_persons(
             if len(supersets) != 1:
                 continue
             winner = supersets[0]
-            if (
-                statement_name
-                and _person_tokens(statement_name) == token_lists[winner]
-            ):
+            if statement_name and _person_tokens(statement_name) == token_lists[winner]:
                 winner = statement_name
             rewrites[short_label] = winner
         if rewrites:
