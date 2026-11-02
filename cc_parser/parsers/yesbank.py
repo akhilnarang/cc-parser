@@ -221,7 +221,7 @@ def _extract_yesbank_name(full_text: str, pages: list[dict[str, Any]]) -> str | 
                         name_parts: list[str] = []
                         single_run = ""
 
-                        for idx, tok in enumerate(name_tokens):
+                        for tok in name_tokens:
                             if len(tok) == 1:
                                 single_run += tok
                                 continue
@@ -489,7 +489,7 @@ def _extract_yesbank_summary(
                             normalize_token(str(w.get("text", "")))
                             for w in lines[i + 1]
                         ]
-                    is_credit = any(t.upper() in {"CR"} for t in search_tokens)
+                    is_credit = any(t.upper() == "CR" for t in search_tokens)
                     for token in search_tokens:
                         amt = parse_amount_token(token)
                         if amt and not previous_balance:
@@ -522,7 +522,6 @@ def _extract_yesbank_summary(
                             normalize_token(str(w.get("text", "")))
                             for w in lines[i + 1]
                         ]
-                    is_credit = any(t.upper() in {"CR"} for t in search_tokens)
                     for token in search_tokens:
                         amt = parse_amount_token(token)
                         if amt and not payments_credits_received:

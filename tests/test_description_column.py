@@ -35,7 +35,7 @@ def _row(doctop: float, cells: list[tuple[float, str]]) -> list[dict[str, Any]]:
 
 
 def _page(rows: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
-    words: list[dict[str, Any]] = [word for row in rows for word in row]
+    words: list[dict[str, Any]] = [*row for row in rows]
     return [{"page_number": 1, "words": words, "text": ""}]
 
 

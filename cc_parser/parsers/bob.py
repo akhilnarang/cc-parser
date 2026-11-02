@@ -284,7 +284,7 @@ def _extract_bob_transactions(
         for row in table[1:]:  # skip row 0 (header)
             if not row or len(row) < 7:
                 continue
-            last_cell = row[6] if row[6] else ""
+            last_cell = row[6] or ""
             if not (
                 isinstance(last_cell, str)
                 and re.search(
@@ -316,7 +316,7 @@ def _extract_bob_transactions(
             dates: list[str] = []
             for d in dates_raw:
                 parsed = parse_date_token(d)
-                dates.append(parsed if parsed else d)
+                dates.append(parsed or d)
             while len(dates) < txn_count:
                 dates.append("")
             dates = dates[:txn_count]

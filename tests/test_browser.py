@@ -1,7 +1,5 @@
 """Verify browser.py extraction and parsing parity with CLI path."""
 
-from __future__ import annotations
-
 from unittest.mock import patch
 
 import pytest
