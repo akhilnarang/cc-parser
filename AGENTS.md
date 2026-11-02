@@ -130,7 +130,7 @@ When modifying parser logic:
 
 ## Coding Conventions
 
-- This repo targets Python 3.14; PEP 758 parenthesis-free `except E1, E2:` syntax is allowed here — do not rewrite it just for style.
+- This repo targets Python 3.15; PEP 758 parenthesis-free `except E1, E2:` syntax is allowed here — do not rewrite it just for style.
 - Use typed Python signatures.
 - Add docstrings with `Args` and `Returns` for non-trivial functions.
 - Prefer pure helper functions for parsing steps.
