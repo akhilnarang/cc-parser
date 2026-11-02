@@ -10,8 +10,6 @@ Equitas statements have these distinctive features:
 - Member header rows like ``FULL NAME : (123456XXXXXX7890)``
 """
 
-from __future__ import annotations
-
 import re
 from typing import Any
 

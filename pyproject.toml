@@ -23,6 +23,10 @@ cc-parser = "cc_parser.cli:main"
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
+[tool.ruff]
+# Pyodide runs the browser path on Python 3.14.
+per-file-target-version = { "cc_parser/parsers/**" = "py314", "cc_parser/browser.py" = "py314", "cc_parser/__init__.py" = "py314" }
+
 [tool.uv]
 package = true
 # Only use releases that PyPI has served for three days.

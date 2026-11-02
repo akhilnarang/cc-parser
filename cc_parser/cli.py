@@ -129,7 +129,7 @@ def write_transactions_csv(parsed: ParsedStatement, output_path: Path) -> None:
     for txn in parsed.payments_refunds:
         add_row("payments_refunds", txn)
 
-    with output_path.open("w", newline="", encoding="utf-8") as csv_file:
+    with output_path.open("w", newline="") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
@@ -492,24 +492,18 @@ def parse_statement(
         else:
             output_obj = parsed_dict
 
-        output_path.write_text(
-            json.dumps(output_obj, indent=2, ensure_ascii=True), encoding="utf-8"
-        )
+        output_path.write_text(json.dumps(output_obj, indent=2, ensure_ascii=True))
         typer.echo(f"Wrote extraction to {output_path}")
 
     if export_json is not None:
         parsed_dict = parsed.model_dump()
         parsed_dict["bank_detected"] = detect_bank(raw_data)
         parsed_dict["bank_parser"] = parser_impl.bank
-        export_json.write_text(
-            json.dumps(parsed_dict, indent=2, ensure_ascii=True), encoding="utf-8"
-        )
+        export_json.write_text(json.dumps(parsed_dict, indent=2, ensure_ascii=True))
         typer.echo(f"Wrote parsed JSON to {export_json}")
 
     if export_raw_json is not None:
-        export_raw_json.write_text(
-            json.dumps(raw_data, indent=2, ensure_ascii=True), encoding="utf-8"
-        )
+        export_raw_json.write_text(json.dumps(raw_data, indent=2, ensure_ascii=True))
         typer.echo(f"Wrote raw JSON to {export_raw_json}")
 
     if export_csv is not None:
