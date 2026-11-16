@@ -1,0 +1,330 @@
+{
+  "bank": "hsbc",
+  "card_number": "11XX XXXX XXXX 0001",
+  "card_summaries": [
+    {
+      "card_number": "22XX XXXX XXXX 0002",
+      "person": "SAMPLE ADDON",
+      "reward_points_total": "0",
+      "total_amount": "4,278.00",
+      "transaction_count": 3
+    },
+    {
+      "card_number": "11XX XXXX XXXX 0001",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "7,833.00",
+      "transaction_count": 4
+    }
+  ],
+  "due_date": "08/02/2099",
+  "file": "synthetic_hsbc_statement.pdf",
+  "name": "TEST MIDDLE CARDHOLDER",
+  "overall_reward_points": "25",
+  "overall_total": "12,111.00",
+  "payments_refunds": [
+    {
+      "amount": "5,000.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": "cr_marker",
+      "date": "18/12/2098",
+      "narration": "PAYMENT RECEIVED TESTREF0000000001",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0000_3f52fb",
+      "transaction_type": "credit"
+    },
+    {
+      "amount": "1,000.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": "cr_marker",
+      "date": "08/01/2099",
+      "narration": "DEMO ONLINE SHOP REFUND",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0001_bf24f7",
+      "transaction_type": "credit"
+    },
+    {
+      "amount": "1,000.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": "emi_installment_transfer",
+      "date": "10/01/2099",
+      "narration": "EMI PRINCIPAL AMOUNT 1ST OF 6 INSTALLMENTS PRINCIPAL",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0002_416b76",
+      "transaction_type": "credit"
+    }
+  ],
+  "payments_refunds_total": "7,000.00",
+  "person_groups": [
+    {
+      "person": "SAMPLE ADDON",
+      "reward_points_total": "0",
+      "total_amount": "4,278.00",
+      "transaction_count": 3,
+      "transactions": [
+        {
+          "amount": "1,111.00",
+          "card_number": "22XX XXXX XXXX 0002",
+          "credit_reasons": null,
+          "date": "12/01/2099",
+          "narration": "SAMPLE RESTAURANT",
+          "person": "SAMPLE ADDON",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0004_ec3bb8",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "2,667.00",
+          "card_number": "22XX XXXX XXXX 0002",
+          "credit_reasons": null,
+          "date": "13/01/2099",
+          "narration": "EXAMPLE TRAVEL BOOKING",
+          "person": "SAMPLE ADDON",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0005_64197c",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "500.00",
+          "card_number": "22XX XXXX XXXX 0002",
+          "credit_reasons": null,
+          "date": "14/01/2099",
+          "narration": "EXAMPLE PHARMACY",
+          "person": "SAMPLE ADDON",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0006_26af17",
+          "transaction_type": "debit"
+        }
+      ]
+    },
+    {
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "7,833.00",
+      "transaction_count": 4,
+      "transactions": [
+        {
+          "amount": "1,000.00",
+          "card_number": "11XX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "20/12/2098",
+          "narration": "SYNTHETIC GROCERY STORE",
+          "person": "TEST MIDDLE CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0000_5c59ac",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "2,500.00",
+          "card_number": "11XX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "28/12/2098",
+          "narration": "EXAMPLE FUEL STATION",
+          "person": "TEST MIDDLE CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0001_4b5f82",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "3,333.00",
+          "card_number": "11XX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "05/01/2099",
+          "narration": "DEMO ONLINE SHOP",
+          "person": "TEST MIDDLE CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0002_8fb5a0",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "1,000.00",
+          "card_number": "11XX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "10/01/2099",
+          "narration": "EMI PRINCIPAL AMOUNT 1ST OF 6 INSTALLMENTS PRINCIPAL",
+          "person": "TEST MIDDLE CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "hsbc_txn_0003_9a6d4a",
+          "transaction_type": "debit"
+        }
+      ]
+    }
+  ],
+  "possible_adjustment_pairs": [
+    {
+      "amount_delta": "0.00",
+      "amount_delta_percent": "0.00%",
+      "confidence": "high",
+      "credit": {
+        "amount": "1,000.00",
+        "card_number": "11XX XXXX XXXX 0001",
+        "credit_reasons": "cr_marker",
+        "date": "08/01/2099",
+        "narration": "DEMO ONLINE SHOP REFUND",
+        "person": "TEST MIDDLE CARDHOLDER",
+        "reward_points": null,
+        "time": null,
+        "transaction_id": "hsbc_txn_0001_bf24f7",
+        "transaction_type": "credit"
+      },
+      "credit_transaction_id": "hsbc_txn_0001_bf24f7",
+      "date_gap_days": 2,
+      "debit": {
+        "amount": "1,000.00",
+        "card_number": "11XX XXXX XXXX 0001",
+        "credit_reasons": null,
+        "date": "10/01/2099",
+        "narration": "EMI PRINCIPAL AMOUNT 1ST OF 6 INSTALLMENTS PRINCIPAL",
+        "person": "TEST MIDDLE CARDHOLDER",
+        "reward_points": null,
+        "time": null,
+        "transaction_id": "hsbc_txn_0003_9a6d4a",
+        "transaction_type": "debit"
+      },
+      "debit_transaction_id": "hsbc_txn_0003_9a6d4a",
+      "kind": "exact_refund",
+      "merchant_similarity": 0.0,
+      "narration_similarity": 0.0,
+      "pair_id": "pair_0003",
+      "reasons": [
+        "exact_amount_match",
+        "same_card_11XX XXXX XXXX 0001",
+        "same_person_TEST MIDDLE CARDHOLDER",
+        "refund_keyword_present",
+        "merchant_mismatch_0.00",
+        "small_date_gap_2d"
+      ],
+      "score": 85
+    }
+  ],
+  "reconciliation": {
+    "delta_statement_vs_header_estimate": "0.00",
+    "delta_statement_vs_parsed_debit": "-1,000.00",
+    "delta_statement_vs_parsed_net": "6,000.00",
+    "excess_paid_after_clearing": "1,000.00",
+    "header_computed_due_estimate": "11,111.00",
+    "header_finance_charges": "",
+    "header_payments_credits_received": "6,000.00",
+    "header_previous_balance": "5,000.00",
+    "header_purchases_debit": "12,111.00",
+    "parsed_credit_total": "7,000.00",
+    "parsed_debit_total": "12,111.00",
+    "parsed_net_due_estimate": "5,111.00",
+    "prev_balance_cleared_date": "18/12/2098",
+    "smart_credit_total": "6,000.00",
+    "smart_delta": "0.00",
+    "smart_excluded_credit_total": "1,000.00",
+    "smart_expected_total": "11,111.00",
+    "statement_total_amount_due": "11,111.00",
+    "summary_amount_candidates": [
+      "5,000.00",
+      "12,111.00",
+      "6,000.00",
+      "16,111.00"
+    ]
+  },
+  "reward_points_balance": "125",
+  "reward_points_bonus": null,
+  "reward_points_bonus_breakdown": null,
+  "reward_points_line_total": null,
+  "statement_total_amount_due": "11,111.00",
+  "transactions": [
+    {
+      "amount": "1,000.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "20/12/2098",
+      "narration": "SYNTHETIC GROCERY STORE",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0000_5c59ac",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "2,500.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "28/12/2098",
+      "narration": "EXAMPLE FUEL STATION",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0001_4b5f82",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "3,333.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "05/01/2099",
+      "narration": "DEMO ONLINE SHOP",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0002_8fb5a0",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "1,000.00",
+      "card_number": "11XX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "10/01/2099",
+      "narration": "EMI PRINCIPAL AMOUNT 1ST OF 6 INSTALLMENTS PRINCIPAL",
+      "person": "TEST MIDDLE CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0003_9a6d4a",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "1,111.00",
+      "card_number": "22XX XXXX XXXX 0002",
+      "credit_reasons": null,
+      "date": "12/01/2099",
+      "narration": "SAMPLE RESTAURANT",
+      "person": "SAMPLE ADDON",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0004_ec3bb8",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "2,667.00",
+      "card_number": "22XX XXXX XXXX 0002",
+      "credit_reasons": null,
+      "date": "13/01/2099",
+      "narration": "EXAMPLE TRAVEL BOOKING",
+      "person": "SAMPLE ADDON",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0005_64197c",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "500.00",
+      "card_number": "22XX XXXX XXXX 0002",
+      "credit_reasons": null,
+      "date": "14/01/2099",
+      "narration": "EXAMPLE PHARMACY",
+      "person": "SAMPLE ADDON",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "hsbc_txn_0006_26af17",
+      "transaction_type": "debit"
+    }
+  ]
+}

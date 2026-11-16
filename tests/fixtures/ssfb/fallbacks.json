@@ -1,0 +1,303 @@
+{
+  "file": "synthetic_statement_6000XXXXXXXX0002.pdf",
+  "source": "pdfplumber+pymupdf+pypdf",
+  "metadata": {
+    "pypdf": {
+      "/Title": "Credit Card Statement",
+      "/Producer": "Synthetic Fixture Generator"
+    },
+    "pymupdf": {
+      "format": "PDF 1.7",
+      "title": "Credit Card Statement",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "creator": "",
+      "producer": "Synthetic Fixture Generator",
+      "creationDate": "",
+      "modDate": "",
+      "trapped": "",
+      "encryption": null
+    }
+  },
+  "encryption": {
+    "is_encrypted": false,
+    "was_decrypted": false
+  },
+  "page_count": 1,
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 595.0,
+      "height": 842.0,
+      "text": "Suryoday Small Finance Bank Credit Card Statement\nPayment Due Date : 30-Jan-2099\nTotal Amount Due\n₹ -100.00\nMinimum Amount Due\n₹ 0.00",
+      "words": [
+        {
+          "text": "Suryoday",
+          "x0": 22.5,
+          "x1": 58.5,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 36.0,
+          "direction": "ltr"
+        },
+        {
+          "text": "Small",
+          "x0": 61.0,
+          "x1": 83.5,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 22.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Finance",
+          "x0": 86.0,
+          "x1": 117.5,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 31.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Bank",
+          "x0": 120.0,
+          "x1": 138.0,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 18.0,
+          "direction": "ltr"
+        },
+        {
+          "text": "Credit",
+          "x0": 400.0,
+          "x1": 427.0,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 27.0,
+          "direction": "ltr"
+        },
+        {
+          "text": "Card",
+          "x0": 429.5,
+          "x1": 447.5,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 18.0,
+          "direction": "ltr"
+        },
+        {
+          "text": "Statement",
+          "x0": 450.0,
+          "x1": 490.5,
+          "top": 30.0,
+          "doctop": 30.0,
+          "bottom": 38.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 40.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Payment",
+          "x0": 22.5,
+          "x1": 54.0,
+          "top": 60.0,
+          "doctop": 60.0,
+          "bottom": 68.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 31.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Due",
+          "x0": 56.5,
+          "x1": 70.0,
+          "top": 60.0,
+          "doctop": 60.0,
+          "bottom": 68.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 13.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Date",
+          "x0": 72.5,
+          "x1": 90.5,
+          "top": 60.0,
+          "doctop": 60.0,
+          "bottom": 68.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 18.0,
+          "direction": "ltr"
+        },
+        {
+          "text": ":",
+          "x0": 93.0,
+          "x1": 97.5,
+          "top": 60.0,
+          "doctop": 60.0,
+          "bottom": 68.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 4.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "30-Jan-2099",
+          "x0": 100.0,
+          "x1": 149.5,
+          "top": 60.0,
+          "doctop": 60.0,
+          "bottom": 68.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 49.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Total",
+          "x0": 22.5,
+          "x1": 45.0,
+          "top": 80.0,
+          "doctop": 80.0,
+          "bottom": 88.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 22.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Amount",
+          "x0": 47.5,
+          "x1": 74.5,
+          "top": 80.0,
+          "doctop": 80.0,
+          "bottom": 88.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 27.0,
+          "direction": "ltr"
+        },
+        {
+          "text": "Due",
+          "x0": 77.0,
+          "x1": 90.5,
+          "top": 80.0,
+          "doctop": 80.0,
+          "bottom": 88.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 13.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "₹",
+          "x0": 22.5,
+          "x1": 27.0,
+          "top": 92.0,
+          "doctop": 92.0,
+          "bottom": 100.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 4.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "-100.00",
+          "x0": 29.5,
+          "x1": 61.0,
+          "top": 92.0,
+          "doctop": 92.0,
+          "bottom": 100.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 31.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Minimum",
+          "x0": 22.5,
+          "x1": 54.0,
+          "top": 110.0,
+          "doctop": 110.0,
+          "bottom": 118.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 31.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "Amount",
+          "x0": 56.5,
+          "x1": 83.5,
+          "top": 110.0,
+          "doctop": 110.0,
+          "bottom": 118.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 27.0,
+          "direction": "ltr"
+        },
+        {
+          "text": "Due",
+          "x0": 86.0,
+          "x1": 99.5,
+          "top": 110.0,
+          "doctop": 110.0,
+          "bottom": 118.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 13.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "₹",
+          "x0": 22.5,
+          "x1": 27.0,
+          "top": 122.0,
+          "doctop": 122.0,
+          "bottom": 130.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 4.5,
+          "direction": "ltr"
+        },
+        {
+          "text": "0.00",
+          "x0": 29.5,
+          "x1": 47.5,
+          "top": 122.0,
+          "doctop": 122.0,
+          "bottom": 130.0,
+          "upright": true,
+          "height": 8.0,
+          "width": 18.0,
+          "direction": "ltr"
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

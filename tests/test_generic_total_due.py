@@ -55,10 +55,7 @@ def test_sign_does_not_attach_to_a_preceding_token():
     currency prefix on a negative amount and shadow the real value.
     """
     full_text = (
-        "TOTAL AMOUNT DUE\n"
-        "PAYMENT VIA A/C-1,234.56\n"
-        "_ C-0.42\n"
-        "TOTAL CREDIT LIMIT\n"
+        "TOTAL AMOUNT DUE\nPAYMENT VIA A/C-1,234.56\n_ C-0.42\nTOTAL CREDIT LIMIT\n"
     )
 
     assert extract_total_amount_due(full_text) == "-0.42"

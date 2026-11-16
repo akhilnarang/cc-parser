@@ -1,0 +1,309 @@
+{
+  "bank": "yesbank",
+  "card_number": "0000 XXXX XXXX 0001",
+  "card_summaries": [
+    {
+      "card_number": "0000 XXXX XXXX 0001",
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "4,811.11",
+      "transaction_count": 5
+    },
+    {
+      "card_number": "0000 XXXX XXXX 0002",
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "950.00",
+      "transaction_count": 2
+    }
+  ],
+  "due_date": "20/02/2099",
+  "file": "synthetic_yesbank_statement.pdf",
+  "name": "TEST CARDHOLDER",
+  "overall_reward_points": "0",
+  "overall_total": "5,761.11",
+  "payments_refunds": [
+    {
+      "amount": "2,000.00",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": "cr_marker",
+      "date": "08/01/2099",
+      "narration": "PAYMENT RECEIVED NEFT TESTREF0000000001",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0000_348a18",
+      "transaction_type": "credit"
+    },
+    {
+      "amount": "300.00",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": "cr_marker",
+      "date": "12/01/2099",
+      "narration": "SAMPLE RESTAURANT REVERSAL",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0001_e774a0",
+      "transaction_type": "credit"
+    }
+  ],
+  "payments_refunds_total": "2,300.00",
+  "person_groups": [
+    {
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "5,761.11",
+      "transaction_count": 7,
+      "transactions": [
+        {
+          "amount": "1,111.11",
+          "card_number": "0000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "02/01/2099",
+          "narration": "SYNTHETIC GROCERY STORE SAMPLE CITY",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0000_14e759",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "500.00",
+          "card_number": "0000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "05/01/2099",
+          "narration": "EXAMPLE FUEL STATION",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0001_268e07",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "2,500.00",
+          "card_number": "0000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "10/01/2099",
+          "narration": "DEMO ONLINE SHOP",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0002_e97d62",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "300.00",
+          "card_number": "0000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "11/01/2099",
+          "narration": "SAMPLE RESTAURANT",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0003_8769a0",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "400.00",
+          "card_number": "0000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "15/01/2099",
+          "narration": "GROCERY STORES SAMPLE ADDON Card Number 0000XXXXXXXX0002",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0004_d944d6",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "750.00",
+          "card_number": "0000 XXXX XXXX 0002",
+          "credit_reasons": null,
+          "date": "18/01/2099",
+          "narration": "SAMPLE PHARMACY",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0005_d2eab9",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "200.00",
+          "card_number": "0000 XXXX XXXX 0002",
+          "credit_reasons": null,
+          "date": "25/01/2099",
+          "narration": "SAMPLE TELECOM BILL",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "yesbank_txn_0006_780ed1",
+          "transaction_type": "debit"
+        }
+      ]
+    }
+  ],
+  "possible_adjustment_pairs": [
+    {
+      "amount_delta": "0.00",
+      "amount_delta_percent": "0.00%",
+      "confidence": "high",
+      "credit": {
+        "amount": "300.00",
+        "card_number": "0000 XXXX XXXX 0001",
+        "credit_reasons": "cr_marker",
+        "date": "12/01/2099",
+        "narration": "SAMPLE RESTAURANT REVERSAL",
+        "person": "TEST CARDHOLDER",
+        "reward_points": null,
+        "time": null,
+        "transaction_id": "yesbank_txn_0001_e774a0",
+        "transaction_type": "credit"
+      },
+      "credit_transaction_id": "yesbank_txn_0001_e774a0",
+      "date_gap_days": 1,
+      "debit": {
+        "amount": "300.00",
+        "card_number": "0000 XXXX XXXX 0001",
+        "credit_reasons": null,
+        "date": "11/01/2099",
+        "narration": "SAMPLE RESTAURANT",
+        "person": "TEST CARDHOLDER",
+        "reward_points": null,
+        "time": null,
+        "transaction_id": "yesbank_txn_0003_8769a0",
+        "transaction_type": "debit"
+      },
+      "debit_transaction_id": "yesbank_txn_0003_8769a0",
+      "kind": "reversal",
+      "merchant_similarity": 1.0,
+      "narration_similarity": 0.6666666666666666,
+      "pair_id": "pair_0003",
+      "reasons": [
+        "exact_amount_match",
+        "same_card_0000 XXXX XXXX 0001",
+        "same_person_TEST CARDHOLDER",
+        "refund_keyword_present",
+        "high_merchant_similarity_1.00",
+        "small_date_gap_1d"
+      ],
+      "score": 125
+    }
+  ],
+  "reconciliation": {
+    "delta_statement_vs_header_estimate": "0.00",
+    "delta_statement_vs_parsed_debit": "-300.00",
+    "delta_statement_vs_parsed_net": "2,000.00",
+    "excess_paid_after_clearing": "1,300.00",
+    "header_computed_due_estimate": "5,461.11",
+    "header_finance_charges": "",
+    "header_payments_credits_received": "2,300.00",
+    "header_previous_balance": "1,000.00",
+    "header_purchases_debit": "6,761.11",
+    "parsed_credit_total": "2,300.00",
+    "parsed_debit_total": "5,761.11",
+    "parsed_net_due_estimate": "3,461.11",
+    "prev_balance_cleared_date": "08/01/2099",
+    "smart_credit_total": "2,300.00",
+    "smart_delta": "1,000.00",
+    "smart_excluded_credit_total": "0.00",
+    "smart_expected_total": "4,461.11",
+    "statement_total_amount_due": "5,461.11",
+    "summary_amount_candidates": [
+      "1,000.00",
+      "6,761.11",
+      "2,300.00"
+    ]
+  },
+  "reward_points_balance": null,
+  "reward_points_bonus": null,
+  "reward_points_bonus_breakdown": null,
+  "reward_points_line_total": null,
+  "statement_total_amount_due": "5,461.11",
+  "transactions": [
+    {
+      "amount": "1,111.11",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "02/01/2099",
+      "narration": "SYNTHETIC GROCERY STORE SAMPLE CITY",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0000_14e759",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "500.00",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "05/01/2099",
+      "narration": "EXAMPLE FUEL STATION",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0001_268e07",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "2,500.00",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "10/01/2099",
+      "narration": "DEMO ONLINE SHOP",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0002_e97d62",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "300.00",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "11/01/2099",
+      "narration": "SAMPLE RESTAURANT",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0003_8769a0",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "400.00",
+      "card_number": "0000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "15/01/2099",
+      "narration": "GROCERY STORES SAMPLE ADDON Card Number 0000XXXXXXXX0002",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0004_d944d6",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "750.00",
+      "card_number": "0000 XXXX XXXX 0002",
+      "credit_reasons": null,
+      "date": "18/01/2099",
+      "narration": "SAMPLE PHARMACY",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0005_d2eab9",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "200.00",
+      "card_number": "0000 XXXX XXXX 0002",
+      "credit_reasons": null,
+      "date": "25/01/2099",
+      "narration": "SAMPLE TELECOM BILL",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "yesbank_txn_0006_780ed1",
+      "transaction_type": "debit"
+    }
+  ]
+}

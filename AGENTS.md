@@ -127,6 +127,25 @@ When modifying parser logic:
 5. Validate with `uv run cc-parser ... -vvv` and inspect `debug` deltas.
 6. Update docs (`README.md`, `docs/parsing-notes.md`, `.agents/skills/add-bank-parser/SKILL.md`) when behavior changes.
 7. Ensure code compiles (`uv run python -m py_compile ...`).
+8. Run the offline checks:
+   `UV_OFFLINE=1 uv run --frozen pytest`, `uv run --frozen ruff check .`,
+   `uv run --frozen ruff format --check .`, `uv run --frozen ty check`.
+
+## Synthetic Fixtures and Baselines
+
+- `tests/fixtures/<bank>/<case>.json` are synthetic `extract_raw_pdf` payloads
+  (`{file, metadata, pages: [{page_number, text, words, tables}]}`); the matching
+  `<case>.expected.json` is the golden `ParsedStatement` dump.
+- `tests/test_baseline_<bank>.py` asserts key fields explicitly and compares the
+  full output with the golden file (helpers in `tests/fixture_support.py`). A
+  refactor that should not change behaviour must leave the goldens untouched.
+- After an intentional behaviour change, regenerate with
+  `CC_PARSER_UPDATE_BASELINES=1 uv run --frozen pytest tests/test_baseline_*.py`
+  and review the diff.
+- Every name, card mask, merchant, reference, date and amount in a fixture must be
+  obviously fake. Never derive a fixture from a real statement.
+- `tests/conftest.py` blocks sockets for every test; tests must not need the
+  network, a browser/CDN runtime, or a database.
 
 ## Coding Conventions
 

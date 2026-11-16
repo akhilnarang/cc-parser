@@ -1,0 +1,295 @@
+{
+  "bank": "jupiter",
+  "card_number": "XXXX XXXX XXXX 0001",
+  "card_summaries": [
+    {
+      "card_number": "XXXX XXXX XXXX 0001",
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "3,568.50",
+      "transaction_count": 6
+    }
+  ],
+  "due_date": "20/02/0200",
+  "file": "synthetic_jupiter_statement.pdf",
+  "name": "TEST CARDHOLDER",
+  "overall_reward_points": "0",
+  "overall_total": "3,568.50",
+  "payments_refunds": [
+    {
+      "amount": "1,500.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": "narration_keyword:repayment",
+      "date": "08/01/2099",
+      "narration": "Repayment received TESTREF0000000001",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "11:00 AM",
+      "transaction_id": "jupiter_txn_0000_4a92db",
+      "transaction_type": "credit"
+    },
+    {
+      "amount": "250.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": "narration_keyword:refund",
+      "date": "14/01/2099",
+      "narration": "Refund SAMPLE CAFE",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "02:45 PM",
+      "transaction_id": "jupiter_txn_0001_96a6a8",
+      "transaction_type": "credit"
+    },
+    {
+      "amount": "50.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": "narration_keyword:jewels converted",
+      "date": "18/01/2099",
+      "narration": "Jewels converted to statement credit",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "09:00 AM",
+      "transaction_id": "jupiter_txn_0002_4bda98",
+      "transaction_type": "credit"
+    }
+  ],
+  "payments_refunds_total": "1,800.00",
+  "person_groups": [
+    {
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "0",
+      "total_amount": "3,568.50",
+      "transaction_count": 6,
+      "transactions": [
+        {
+          "amount": "1,200.00",
+          "card_number": "XXXX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "03/01/2099",
+          "narration": "SYNTHETIC GROCERY STORE",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": "10:15 AM",
+          "transaction_id": "jupiter_txn_0000_477a35",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "500.50",
+          "card_number": "XXXX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "05/01/2099",
+          "narration": "EXAMPLE FUEL STATION",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": "06:30 PM",
+          "transaction_id": "jupiter_txn_0001_b62a93",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "1,500.00",
+          "card_number": "XXXX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "10/01/2099",
+          "narration": "DEMO ONLINE SHOP",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": "21:05",
+          "transaction_id": "jupiter_txn_0002_1d8692",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "250.00",
+          "card_number": "XXXX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "12/01/2099",
+          "narration": "SAMPLE CAFE",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "jupiter_txn_0003_12afff",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "100.00",
+          "card_number": "XXXX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "25/01/2099",
+          "narration": "Annual membership fee",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": "12:00 AM",
+          "transaction_id": "jupiter_txn_0004_e8542c",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "18.00",
+          "card_number": "XXXX XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "25/01/2099",
+          "narration": "GST on fee",
+          "person": "TEST CARDHOLDER",
+          "reward_points": null,
+          "time": "12:00 AM",
+          "transaction_id": "jupiter_txn_0005_6eaf8a",
+          "transaction_type": "debit"
+        }
+      ]
+    }
+  ],
+  "possible_adjustment_pairs": [
+    {
+      "amount_delta": "0.00",
+      "amount_delta_percent": "0.00%",
+      "confidence": "high",
+      "credit": {
+        "amount": "250.00",
+        "card_number": "XXXX XXXX XXXX 0001",
+        "credit_reasons": "narration_keyword:refund",
+        "date": "14/01/2099",
+        "narration": "Refund SAMPLE CAFE",
+        "person": "TEST CARDHOLDER",
+        "reward_points": null,
+        "time": "02:45 PM",
+        "transaction_id": "jupiter_txn_0001_96a6a8",
+        "transaction_type": "credit"
+      },
+      "credit_transaction_id": "jupiter_txn_0001_96a6a8",
+      "date_gap_days": 2,
+      "debit": {
+        "amount": "250.00",
+        "card_number": "XXXX XXXX XXXX 0001",
+        "credit_reasons": null,
+        "date": "12/01/2099",
+        "narration": "SAMPLE CAFE",
+        "person": "TEST CARDHOLDER",
+        "reward_points": null,
+        "time": null,
+        "transaction_id": "jupiter_txn_0003_12afff",
+        "transaction_type": "debit"
+      },
+      "debit_transaction_id": "jupiter_txn_0003_12afff",
+      "kind": "exact_refund",
+      "merchant_similarity": 1.0,
+      "narration_similarity": 0.6666666666666666,
+      "pair_id": "pair_0010",
+      "reasons": [
+        "exact_amount_match",
+        "same_card_XXXX XXXX XXXX 0001",
+        "same_person_TEST CARDHOLDER",
+        "refund_keyword_present",
+        "high_merchant_similarity_1.00",
+        "small_date_gap_2d"
+      ],
+      "score": 125
+    }
+  ],
+  "reconciliation": {
+    "delta_statement_vs_header_estimate": "0.00",
+    "delta_statement_vs_parsed_debit": "-300.00",
+    "delta_statement_vs_parsed_net": "1,500.00",
+    "excess_paid_after_clearing": "300.00",
+    "header_computed_due_estimate": "3,268.50",
+    "header_finance_charges": "118.00",
+    "header_payments_credits_received": "1,800.00",
+    "header_previous_balance": "1,500.00",
+    "header_purchases_debit": "3,450.50",
+    "parsed_credit_total": "1,800.00",
+    "parsed_debit_total": "3,568.50",
+    "parsed_net_due_estimate": "1,768.50",
+    "prev_balance_cleared_date": "08/01/2099",
+    "smart_credit_total": "1,800.00",
+    "smart_delta": "-118.00",
+    "smart_excluded_credit_total": "0.00",
+    "smart_expected_total": "3,386.50",
+    "statement_total_amount_due": "3,268.50",
+    "summary_amount_candidates": [
+      "1,500.00",
+      "3,450.50",
+      "0.00",
+      "100.00",
+      "18.00",
+      "1,500.00",
+      "300.00",
+      "0.00"
+    ]
+  },
+  "reward_points_balance": null,
+  "reward_points_bonus": null,
+  "reward_points_bonus_breakdown": null,
+  "reward_points_line_total": null,
+  "statement_total_amount_due": "3,268.50",
+  "transactions": [
+    {
+      "amount": "1,200.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "03/01/2099",
+      "narration": "SYNTHETIC GROCERY STORE",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "10:15 AM",
+      "transaction_id": "jupiter_txn_0000_477a35",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "500.50",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "05/01/2099",
+      "narration": "EXAMPLE FUEL STATION",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "06:30 PM",
+      "transaction_id": "jupiter_txn_0001_b62a93",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "1,500.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "10/01/2099",
+      "narration": "DEMO ONLINE SHOP",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "21:05",
+      "transaction_id": "jupiter_txn_0002_1d8692",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "250.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "12/01/2099",
+      "narration": "SAMPLE CAFE",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "jupiter_txn_0003_12afff",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "100.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "25/01/2099",
+      "narration": "Annual membership fee",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "12:00 AM",
+      "transaction_id": "jupiter_txn_0004_e8542c",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "18.00",
+      "card_number": "XXXX XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "25/01/2099",
+      "narration": "GST on fee",
+      "person": "TEST CARDHOLDER",
+      "reward_points": null,
+      "time": "12:00 AM",
+      "transaction_id": "jupiter_txn_0005_6eaf8a",
+      "transaction_type": "debit"
+    }
+  ]
+}

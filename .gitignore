@@ -7,13 +7,22 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
 
-# Debugging and export results
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Debugging and export results (loose JSON/CSV dumps, local manifests)
 *.csv
 *.json
 
-# Statements
+# Synthetic test fixtures are the one place JSON is committed.
+!tests/fixtures/
+!tests/fixtures/**/
+!tests/fixtures/**/*.json
+
+# Statements (never commit real PDFs)
 *.pdf
 
 # Claude

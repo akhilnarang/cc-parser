@@ -1,0 +1,197 @@
+{
+  "bank": "bob",
+  "card_number": "2222XXXXXXXX1111",
+  "card_summaries": [
+    {
+      "card_number": "2222XXXXXXXX1111",
+      "person": "SAMPLE HOLDER",
+      "reward_points_total": "11",
+      "total_amount": "1,850.00",
+      "transaction_count": 5
+    }
+  ],
+  "due_date": "05/02/2100",
+  "file": "synthetic_bob_multipage.pdf",
+  "name": "SAMPLE HOLDER",
+  "overall_reward_points": "11",
+  "overall_total": "1,850.00",
+  "payments_refunds": [
+    {
+      "amount": "3,000.00",
+      "card_number": "2222XXXXXXXX1111",
+      "credit_reasons": "bob_cr_suffix",
+      "date": "05/01/2100",
+      "narration": "PAYMENT RECEIVED TESTREF0000000002",
+      "person": "SAMPLE HOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "bob_txn_0000_4ef754",
+      "transaction_type": "credit"
+    }
+  ],
+  "payments_refunds_total": "3,000.00",
+  "person_groups": [
+    {
+      "person": "SAMPLE HOLDER",
+      "reward_points_total": "11",
+      "total_amount": "1,850.00",
+      "transaction_count": 5,
+      "transactions": [
+        {
+          "amount": "700.00",
+          "card_number": "2222XXXXXXXX1111",
+          "credit_reasons": null,
+          "date": "02/01/2100",
+          "narration": "SYNTHETIC BOOK SHOP DEMO TOWN",
+          "person": "SAMPLE HOLDER",
+          "reward_points": "7",
+          "time": null,
+          "transaction_id": "bob_txn_0000_caf484",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "400.00",
+          "card_number": "2222XXXXXXXX1111",
+          "credit_reasons": null,
+          "date": "08/01/2100",
+          "narration": "EXAMPLE CAFE DEMO TOWN",
+          "person": "SAMPLE HOLDER",
+          "reward_points": "4",
+          "time": null,
+          "transaction_id": "bob_txn_0001_504ace",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "100.00",
+          "card_number": "2222XXXXXXXX1111",
+          "credit_reasons": null,
+          "date": "12/01/2100",
+          "narration": "DEMO STREAMING SERVICE",
+          "person": "SAMPLE HOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "bob_txn_0002_bf6c71",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "500.00",
+          "card_number": "2222XXXXXXXX1111",
+          "credit_reasons": null,
+          "date": "15/01/2100",
+          "narration": "EXAMPLE TRAVEL DESK",
+          "person": "SAMPLE HOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "bob_txn_0003_0471ff",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "150.00",
+          "card_number": "2222XXXXXXXX1111",
+          "credit_reasons": null,
+          "date": "18/01/2100",
+          "narration": "UNKNOWN",
+          "person": "SAMPLE HOLDER",
+          "reward_points": null,
+          "time": null,
+          "transaction_id": "bob_txn_0004_ebb798",
+          "transaction_type": "debit"
+        }
+      ]
+    }
+  ],
+  "possible_adjustment_pairs": [],
+  "reconciliation": {
+    "delta_statement_vs_header_estimate": "0.00",
+    "delta_statement_vs_parsed_debit": "-2,000.00",
+    "delta_statement_vs_parsed_net": "1,000.00",
+    "excess_paid_after_clearing": "2,000.00",
+    "header_computed_due_estimate": "-150.00",
+    "header_finance_charges": "",
+    "header_payments_credits_received": "3,000.00",
+    "header_previous_balance": "1,000.00",
+    "header_purchases_debit": "1,850.00",
+    "parsed_credit_total": "3,000.00",
+    "parsed_debit_total": "1,850.00",
+    "parsed_net_due_estimate": "-1,150.00",
+    "prev_balance_cleared_date": "05/01/2100",
+    "smart_credit_total": "3,000.00",
+    "smart_delta": "0.00",
+    "smart_excluded_credit_total": "0.00",
+    "smart_expected_total": "-150.00",
+    "statement_total_amount_due": "-150.00",
+    "summary_amount_candidates": [
+      "1,000.00",
+      "3,000.00",
+      "1,850.00",
+      "150.00"
+    ]
+  },
+  "reward_points_balance": "62",
+  "reward_points_bonus": null,
+  "reward_points_bonus_breakdown": null,
+  "reward_points_line_total": null,
+  "statement_total_amount_due": "-150.00",
+  "transactions": [
+    {
+      "amount": "700.00",
+      "card_number": "2222XXXXXXXX1111",
+      "credit_reasons": null,
+      "date": "02/01/2100",
+      "narration": "SYNTHETIC BOOK SHOP DEMO TOWN",
+      "person": "SAMPLE HOLDER",
+      "reward_points": "7",
+      "time": null,
+      "transaction_id": "bob_txn_0000_caf484",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "400.00",
+      "card_number": "2222XXXXXXXX1111",
+      "credit_reasons": null,
+      "date": "08/01/2100",
+      "narration": "EXAMPLE CAFE DEMO TOWN",
+      "person": "SAMPLE HOLDER",
+      "reward_points": "4",
+      "time": null,
+      "transaction_id": "bob_txn_0001_504ace",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "100.00",
+      "card_number": "2222XXXXXXXX1111",
+      "credit_reasons": null,
+      "date": "12/01/2100",
+      "narration": "DEMO STREAMING SERVICE",
+      "person": "SAMPLE HOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "bob_txn_0002_bf6c71",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "500.00",
+      "card_number": "2222XXXXXXXX1111",
+      "credit_reasons": null,
+      "date": "15/01/2100",
+      "narration": "EXAMPLE TRAVEL DESK",
+      "person": "SAMPLE HOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "bob_txn_0003_0471ff",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "150.00",
+      "card_number": "2222XXXXXXXX1111",
+      "credit_reasons": null,
+      "date": "18/01/2100",
+      "narration": "UNKNOWN",
+      "person": "SAMPLE HOLDER",
+      "reward_points": null,
+      "time": null,
+      "transaction_id": "bob_txn_0004_ebb798",
+      "transaction_type": "debit"
+    }
+  ]
+}

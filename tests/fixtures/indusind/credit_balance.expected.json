@@ -1,0 +1,111 @@
+{
+  "bank": "indusind",
+  "card_number": "4000 XXXX XXXX 0001",
+  "card_summaries": [
+    {
+      "card_number": "4000 XXXX XXXX 0001",
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "7",
+      "total_amount": "700.00",
+      "transaction_count": 2
+    }
+  ],
+  "due_date": "30/01/2099",
+  "file": "synthetic_indusind_credit_balance.pdf",
+  "name": "TEST CARDHOLDER",
+  "overall_reward_points": "7",
+  "overall_total": "700.00",
+  "payments_refunds": [],
+  "payments_refunds_total": "0.00",
+  "person_groups": [
+    {
+      "person": "TEST CARDHOLDER",
+      "reward_points_total": "7",
+      "total_amount": "700.00",
+      "transaction_count": 2,
+      "transactions": [
+        {
+          "amount": "400.00",
+          "card_number": "4000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "05/01/2099",
+          "narration": "SYNTHETIC GROCERY STORE",
+          "person": "TEST CARDHOLDER",
+          "reward_points": "4",
+          "time": null,
+          "transaction_id": "indusind_txn_0000_b2c958",
+          "transaction_type": "debit"
+        },
+        {
+          "amount": "300.00",
+          "card_number": "4000 XXXX XXXX 0001",
+          "credit_reasons": null,
+          "date": "12/01/2099",
+          "narration": "EXAMPLE FUEL STATION",
+          "person": "TEST CARDHOLDER",
+          "reward_points": "3",
+          "time": null,
+          "transaction_id": "indusind_txn_0001_398893",
+          "transaction_type": "debit"
+        }
+      ]
+    }
+  ],
+  "possible_adjustment_pairs": [],
+  "reconciliation": {
+    "delta_statement_vs_header_estimate": "0.00",
+    "delta_statement_vs_parsed_debit": "-1,000.00",
+    "delta_statement_vs_parsed_net": "-1,000.00",
+    "excess_paid_after_clearing": null,
+    "header_computed_due_estimate": "-300.00",
+    "header_finance_charges": "",
+    "header_payments_credits_received": "0.00",
+    "header_previous_balance": "-1,000.00",
+    "header_purchases_debit": "700.00",
+    "parsed_credit_total": "0.00",
+    "parsed_debit_total": "700.00",
+    "parsed_net_due_estimate": "700.00",
+    "prev_balance_cleared_date": null,
+    "smart_credit_total": "0.00",
+    "smart_delta": "0.00",
+    "smart_excluded_credit_total": "0.00",
+    "smart_expected_total": "-300.00",
+    "statement_total_amount_due": "-300.00",
+    "summary_amount_candidates": [
+      "-1,000.00",
+      "700.00",
+      "0.00"
+    ]
+  },
+  "reward_points_balance": null,
+  "reward_points_bonus": null,
+  "reward_points_bonus_breakdown": null,
+  "reward_points_line_total": null,
+  "statement_total_amount_due": "-300.00",
+  "transactions": [
+    {
+      "amount": "400.00",
+      "card_number": "4000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "05/01/2099",
+      "narration": "SYNTHETIC GROCERY STORE",
+      "person": "TEST CARDHOLDER",
+      "reward_points": "4",
+      "time": null,
+      "transaction_id": "indusind_txn_0000_b2c958",
+      "transaction_type": "debit"
+    },
+    {
+      "amount": "300.00",
+      "card_number": "4000 XXXX XXXX 0001",
+      "credit_reasons": null,
+      "date": "12/01/2099",
+      "narration": "EXAMPLE FUEL STATION",
+      "person": "TEST CARDHOLDER",
+      "reward_points": "3",
+      "time": null,
+      "transaction_id": "indusind_txn_0001_398893",
+      "transaction_type": "debit"
+    }
+  ]
+}
