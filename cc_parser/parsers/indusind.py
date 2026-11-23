@@ -91,13 +91,31 @@ def _format_card(raw: str) -> str:
     return digits
 
 
+def _named_member_header(full_text: str) -> re.Match[str] | None:
+    """Return the first section header that names a cardholder.
+
+    A header with no name carries the EMI loan number, not the card. It must
+    not set the statement name or card.
+
+    Args:
+        full_text: Text of all statement pages.
+
+    Returns:
+        The first header match with a non-blank name, or ``None``.
+    """
+    for match in _MEMBER_HEADER_RE.finditer(full_text):
+        if clean_space(match.group(1)):
+            return match
+    return None
+
+
 def _extract_indusind_name(full_text: str, pages: list[dict[str, Any]]) -> str | None:
     """Extract cardholder name from IndusInd statement.
 
     IndusInd prints the name with honorific in the member header:
     ``Purchases & Cash Transactions for MR CARDHOLDER NAME (Credit Card No. ...)``
     """
-    match = _MEMBER_HEADER_RE.search(full_text)
+    match = _named_member_header(full_text)
     if match:
         name = clean_space(match.group(1)).upper()
         name = re.sub(r"^(MR|MRS|MS|MISS|DR)\.?\s+", "", name)
@@ -126,7 +144,7 @@ def _extract_indusind_card_number(
 
     IndusInd uses formats like ``1234XXXXXXXX5678`` in member headers.
     """
-    match = _MEMBER_HEADER_RE.search(full_text)
+    match = _named_member_header(full_text)
     if match:
         raw = normalize_card_token(match.group(2))
         if looks_like_card_token(raw):

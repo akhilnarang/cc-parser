@@ -34,6 +34,7 @@ Extraction caveats that parser accounts for:
 - Equitas-style page-1 summaries where `Total Due` / `Due Date` live above the transaction grid and MITC/example pages later in the PDF contain unrelated sample totals.
 - HSBC payment-summary labels that may not survive text extraction. The parser uses the page-1 statement-period row to recover `Total payment due` and does not substitute `Net outstanding balance`, because that balance can include future loan instalments.
 - HSBC reward summaries that expose aggregate opening/earned/redeemed/closing values but no per-transaction points. Earned and closing values are normalized as point counts; earned points populate card/person rollups only when there is exactly one unambiguous card/person group.
+- IndusInd EMI conversions, which add sections after the purchases: the `TRANSFERRED TO EMI` credit, `Interest & Other Charges`, and `EMI Charges`. The credit sits under a header with no name and the EMI loan number in place of the card. Those rows take the statement card, and that header never sets the statement name or card. A sidebar label (`Total Outstanding`) can bleed onto a row after its `CR`, so the marker paired with the amount sets the direction.
 - HSBC EMI postings whose principal/interest detail is printed on a continuation line below both a `CR` transfer and matching billed debit. The detail is retained in narration, the internal credit remains observable in `payments_refunds`, and smart reconciliation excludes it from credits applied to the current payable amount.
 
 ## Normalized Output Model

@@ -5,7 +5,11 @@ transaction amount, the row holds two ``AMOUNT DR`` pairs. The charge is the
 first (leftmost); the rightward one is the total and must not be picked.
 """
 
-from cc_parser.parsers.indusind import _extract_indusind_transactions
+from cc_parser.parsers.indusind import (
+    _extract_indusind_card_number,
+    _extract_indusind_name,
+    _extract_indusind_transactions,
+)
 
 
 def _word(text: str, x0: float, top: float = 480.0) -> dict:
@@ -202,3 +206,16 @@ def test_emi_conversion_sections_are_parsed():
     # statement card.
     assert transactions[1].card_number is None
     assert transactions[1].credit_reasons == "cr_marker"
+
+
+def test_blank_name_header_does_not_set_statement_identity():
+    """A header with no name carries the EMI loan number. When it comes first,
+    the statement name and card still come from the first named header."""
+    full_text = (
+        "Purchases & Cash Transactions for    (Credit Card No. 4000XXXXXXXX0009)\n"
+        "Purchases & Cash Transactions for MR TEST CARDHOLDER "
+        "(Credit Card No. 4000XXXXXXXX0002)\n"
+    )
+
+    assert _extract_indusind_name(full_text, []) == "TEST CARDHOLDER"
+    assert _extract_indusind_card_number(full_text, []) == "4000 XXXX XXXX 0002"
