@@ -123,3 +123,82 @@ def test_merged_marker_amount_with_total_bleed():
     assert txn.amount == "161.00"
     assert txn.reward_points == "4"
     assert txn.transaction_type == "debit"
+
+
+def _header_words(
+    label: list[str], name: list[str], card: str, top: float
+) -> list[dict]:
+    """Section header: ``<label> for <name> (Credit Card No. <card>)``."""
+    texts = [*label, "for", *name, "(Credit", "Card", "No.", f"{card})"]
+    return [_word(text, 22.5 + 20 * i, top) for i, text in enumerate(texts)]
+
+
+def test_emi_conversion_sections_are_parsed():
+    """An EMI conversion adds three sections after the purchases. Each holds
+    rows the statement totals count, so each must be parsed. The conversion
+    credit sits under a header with no name and the EMI loan number. A
+    sidebar label bleeds onto that row after its CR marker."""
+    words = [
+        *_member_header_words(top=400.0),
+        _word("05/11/2026", 22.5, 412.0),
+        _word("SAMPLE", 63.0, 412.0),
+        _word("ELECTRONICS", 105.0, 412.0),
+        _word("1,000.00", 405.0, 412.0),
+        _word("DR", 426.0, 412.0),
+        _word("Total", 22.5, 424.0),
+        _word("1,000.00", 405.0, 424.0),
+        *_header_words(
+            ["Purchases", "&", "Cash", "Transactions"], [], "4000XXXXXXXX0009", 440.0
+        ),
+        _word("11/11/2026", 22.5, 452.0),
+        _word("TRANSFERRED", 63.0, 452.0),
+        _word("TO", 111.0, 452.0),
+        _word("EMI", 122.0, 452.0),
+        _word("0", 336.0, 452.0),
+        _word("1,000.00", 396.0, 452.0),
+        _word("CR", 427.0, 452.0),
+        _word("Total", 471.0, 451.0),
+        _word("Outstanding", 493.0, 451.0),
+        _word("Total", 22.5, 464.0),
+        _word("1,000.00", 405.0, 464.0),
+        *_header_words(
+            ["Interest", "&", "Other", "Charges"],
+            ["MR", "TEST", "CARDHOLDER"],
+            "4000XXXXXXXX0002",
+            480.0,
+        ),
+        _word("11/11/2026", 22.5, 492.0),
+        _word("EPP", 63.0, 492.0),
+        _word("CONVERSION", 77.0, 492.0),
+        _word("FEE", 121.0, 492.0),
+        _word("0", 336.0, 492.0),
+        _word("99.00", 405.0, 492.0),
+        _word("DR", 427.0, 492.0),
+        _word("Total", 22.5, 504.0),
+        _word("99.00", 405.0, 504.0),
+        *_header_words(
+            ["EMI", "Charges"], ["MR", "TEST", "CARDHOLDER"], "4000XXXXXXXX0002", 520.0
+        ),
+        _word("15/11/2026", 22.5, 532.0),
+        _word("EMI", 63.0, 532.0),
+        _word("PRIN", 76.0, 532.0),
+        _word("(001/003)", 165.0, 532.0),
+        _word("0", 336.0, 532.0),
+        _word("333.33", 405.0, 532.0),
+        _word("DR", 427.0, 532.0),
+    ]
+    pages = [{"page_number": 1, "words": words}]
+
+    transactions, _ = _extract_indusind_transactions(pages)
+
+    rows = [(t.narration, t.amount, t.transaction_type) for t in transactions]
+    assert rows == [
+        ("SAMPLE ELECTRONICS", "1,000.00", "debit"),
+        ("TRANSFERRED TO EMI", "1,000.00", "credit"),
+        ("EPP CONVERSION FEE", "99.00", "debit"),
+        ("EMI PRIN (001/003)", "333.33", "debit"),
+    ]
+    # The EMI loan number is not a card. The parse step fills in the
+    # statement card.
+    assert transactions[1].card_number is None
+    assert transactions[1].credit_reasons == "cr_marker"

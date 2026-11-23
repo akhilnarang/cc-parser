@@ -53,12 +53,17 @@ from cc_parser.parsers.tokens import (
 )
 from cc_parser.parsers.transaction_id_generator import assign_transaction_ids
 
-# Regex for member header lines:
+# Regex for section header lines:
 # "Payment Details for MR NAME (Credit Card No. XXXXXXXXXXXX1234)"
 # "Purchases & Cash Transactions for MR NAME (Credit Card No. XXXX1234)"
+# "Interest & Other Charges for MR NAME (Credit Card No. XXXX1234)"
+# "EMI Charges for MR NAME (Credit Card No. XXXX1234)"
+# The name can be blank. The "TRANSFERRED TO EMI" credit sits under a header
+# with no name and the EMI loan number in place of the card.
 _MEMBER_HEADER_RE = re.compile(
-    r"(?:PAYMENT\s+DETAILS|PURCHASES\s+(?:&|AND)\s+CASH\s+TRANSACTIONS)"
-    r"\s+FOR\s+(.+?)\s*\(CREDIT\s+CARD\s+NO\.\s*([0-9A-ZX][0-9A-ZX \-]*[0-9A-ZX])\)",
+    r"(?:PAYMENT\s+DETAILS|PURCHASES\s+(?:&|AND)\s+CASH\s+TRANSACTIONS"
+    r"|INTEREST\s+(?:&|AND)\s+OTHER\s+CHARGES|EMI\s+CHARGES)"
+    r"\s+FOR\s*(.*?)\s*\(CREDIT\s+CARD\s+NO\.\s*([0-9A-ZX][0-9A-ZX \-]*[0-9A-ZX])\)",
     re.IGNORECASE,
 )
 
@@ -296,15 +301,25 @@ def _extract_indusind_transactions(
             if header_match:
                 name = clean_space(header_match.group(1)).upper()
                 name = re.sub(r"^(MR|MRS|MS|MISS|DR)\.?\s+", "", name)
-                card_raw = normalize_card_token(header_match.group(2))
-                if looks_like_card_token(card_raw):
-                    current_card = _format_card(mask_card_token(card_raw))
 
-                # "Payment Details" sections contain credits;
-                # "Purchases & Cash Transactions" sections contain debits.
+                # "Payment Details" sections contain credits. The other
+                # sections contain debits.
                 is_credit_section = (
                     "PAYMENT" in joined_upper and "DETAILS" in joined_upper
                 )
+
+                if not name:
+                    # A header with no name holds rows for the statement card.
+                    # Its number is the EMI loan, not a card. The parse step
+                    # fills in the statement card and name.
+                    current_card = None
+                    current_member = None
+                    in_transaction_section = True
+                    continue
+
+                card_raw = normalize_card_token(header_match.group(2))
+                if looks_like_card_token(card_raw):
+                    current_card = _format_card(mask_card_token(card_raw))
 
                 parts = name.split()
                 if 2 <= len(parts) <= 5:
@@ -370,18 +385,27 @@ def _extract_indusind_transactions(
                 search_end = len(tokens) - 1
 
             amount_idx = -1
+            amount_marker: str | None = None
             for i in range(1, search_end):
                 if tokens[i].upper() in {"CR", "DR", "C", "D"}:
                     # Standalone marker: the amount is the token before it.
                     prev = tokens[i - 1]
                     if parse_amount_token(prev) is not None:
                         amount_idx = i - 1
+                        amount_marker = tokens[i].upper()
                         break
                 elif tokens[i].upper().endswith(("CR", "DR")) and len(tokens[i]) > 2:
                     # Marker merged into the amount ("161.00DR").
                     if parse_amount_token(tokens[i][:-2]) is not None:
                         amount_idx = i
+                        amount_marker = tokens[i].upper()[-2:]
                         break
+
+            # The marker paired with the amount sets the direction. A sidebar
+            # label can bleed onto the row after it, for example "Total
+            # Outstanding" after "1,000.00 CR".
+            if amount_marker is not None:
+                is_credit = amount_marker in {"CR", "C"}
 
             # Fallback (no inline marker, e.g. a marker-less credit row):
             # rightmost amount-matching token before any trailing marker.
@@ -500,7 +524,11 @@ def _extract_indusind_transactions(
 
             credit_reason = None
             if is_credit:
-                if last_token in {"CR", "C"} or last_token.endswith("CR"):
+                if (
+                    amount_marker in {"CR", "C"}
+                    or last_token in {"CR", "C"}
+                    or last_token.endswith("CR")
+                ):
                     credit_reason = "cr_marker"
                 else:
                     credit_reason = "payment_details_section"
